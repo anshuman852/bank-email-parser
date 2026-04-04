@@ -7,12 +7,12 @@ from pydantic import BaseModel, Field
 
 
 class Money(BaseModel):
-    amount: Decimal
+    amount: Decimal = Field(ge=0)
     currency: str = "INR"
 
 
 class TransactionAlert(BaseModel):
-    direction: Literal["debit", "credit"]
+    direction: Literal["debit", "credit", "declined"]
     amount: Money
     transaction_date: date | None = None
     transaction_time: time | None = None
@@ -25,6 +25,7 @@ class TransactionAlert(BaseModel):
     raw_description: str | None = Field(
         default=None,
         exclude=True,
+        repr=False,
         description="Debug-only raw parser context; excluded from serialized output by default.",
     )
 

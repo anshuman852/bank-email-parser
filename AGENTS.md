@@ -62,8 +62,7 @@ class ExampleCcAlertParser(BaseEmailParser):
     _pattern = re.compile(r"...")
 
     def parse(self, html: str) -> ParsedEmail:
-        soup = BeautifulSoup(html, "html.parser")
-        text = normalize_whitespace(soup.get_text(separator=" ", strip=True))
+        soup, text = self.prepare_html(html)
         if not (match := self._pattern.search(text)):
             raise ParseError("Could not parse ...")
         # ... extract fields and return ParsedEmail(...)

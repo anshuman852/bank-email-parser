@@ -24,6 +24,16 @@ def parse_email(bank: str, html: str) -> ParsedEmail:
         UnsupportedEmailTypeError: If bank is not recognized.
         ParseError: If no parser could handle the email.
     """
+    if not isinstance(bank, str):
+        raise UnsupportedEmailTypeError(
+            f"Expected 'bank' to be a string, got {type(bank).__name__}"
+        )
+
+    if not isinstance(html, str):
+        raise ParseError(
+            f"Expected 'html' to be a string, got {type(html).__name__}"
+        )
+
     bank = bank.strip().lower()
 
     if bank not in SUPPORTED_BANKS:

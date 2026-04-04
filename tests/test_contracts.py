@@ -4,6 +4,9 @@ from decimal import Decimal
 from datetime import date, time
 
 from bank_email_parser.api import parse_email
+from bank_email_parser.exceptions import ParseError
+from bank_email_parser.models import Money, ParsedEmail, TransactionAlert
+from bank_email_parser.parsers.base import BaseEmailParser, parse_with_parsers
 
 
 def test_equitas_parser_populates_transaction_time() -> None:
@@ -79,6 +82,25 @@ def test_raw_description_is_excluded_from_serialized_output_by_default() -> None
     assert "raw_description" not in result.model_dump()["transaction"]
 
 
+def test_raw_description_is_excluded_from_model_repr_by_default() -> None:
+    html = """
+    <html><body>
+      <p>
+        We inform you that INR 1,500.00 was spent on your Equitas Credit Card
+        ending with 1234 at SAMPLE STORE on 15-01-2026 at 02:23:51 pm.
+        Your available balance is INR 50,000.00.
+      </p>
+    </body></html>
+    """
+
+    result = parse_email("equitas", html)
+
+    assert result.transaction.raw_description is not None
+    assert "raw_description" not in repr(result)
+    assert "raw_description" not in repr(result.transaction)
+    assert "We inform you that" not in repr(result.transaction)
+
+
 def test_hsbc_invalid_time_does_not_degrade_to_midnight() -> None:
     html = """
     <html><body>
@@ -109,3 +131,51 @@ def test_indusind_cc_payment_parser_still_sets_transaction_date() -> None:
 
     assert result.email_type == "indusind_cc_payment_alert"
     assert result.transaction.transaction_date == date(2026, 1, 15)
+
+
+def test_parse_with_parsers_reuses_prepared_html_across_fallbacks(monkeypatch) -> None:
+    calls = 0
+    original = BaseEmailParser._build_prepared_email
+
+    def counted_build(html: str):
+        nonlocal calls
+        calls += 1
+        return original(html)
+
+    monkeypatch.setattr(
+        BaseEmailParser,
+        "_build_prepared_email",
+        staticmethod(counted_build),
+    )
+
+    class FirstParser(BaseEmailParser):
+        bank = "test"
+        email_type = "first"
+
+        def parse(self, html: str) -> ParsedEmail:
+            self.prepare_html(html)
+            raise ParseError("not this one")
+
+    class SecondParser(BaseEmailParser):
+        bank = "test"
+        email_type = "second"
+
+        def parse(self, html: str) -> ParsedEmail:
+            self.prepare_html(html)
+            return ParsedEmail(
+                email_type=self.email_type,
+                bank=self.bank,
+                transaction=TransactionAlert(
+                    direction="debit",
+                    amount=Money(amount=Decimal("1.00")),
+                ),
+            )
+
+    result = parse_with_parsers(
+        "test",
+        "<html><body><p>sample</p></body></html>",
+        (FirstParser(), SecondParser()),
+    )
+
+    assert result.email_type == "second"
+    assert calls == 1

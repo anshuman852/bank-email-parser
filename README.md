@@ -100,7 +100,7 @@ class TransactionAlert(BaseModel):
     account_mask: str | None
     card_mask: str | None
     channel: str | None       # upi, neft, imps, rtgs, card, atm, netbanking, cheque, etc.
-    raw_description: str | None  # debug-only; excluded from model_dump()/model_dump_json() by default
+    raw_description: str | None  # debug-only; excluded from dumps and model repr by default
 
 class Money(BaseModel):
     amount: Decimal

@@ -1,6 +1,10 @@
 """Base parser class and fallback-chain dispatcher for bank email parsers."""
+import copy
+import threading
+import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 from bs4 import BeautifulSoup
 
@@ -9,16 +13,63 @@ from bank_email_parser.models import ParsedEmail
 from bank_email_parser.utils import normalize_whitespace
 
 
+@dataclass(slots=True)
+class ParserContext:
+    """Shared per-dispatch parser context."""
+
+    html: str
+    prepared_email: tuple[BeautifulSoup, str] | None = None
+
+
+# Thread-local storage for parser context, so concurrent calls to
+# parse_with_parsers() do not corrupt each other's state.
+_thread_local = threading.local()
+
+
 class BaseEmailParser(ABC):
     bank: str
     email_type: str
 
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        super().__init_subclass__(**kwargs)
+        # Skip classes that don't define either attribute — abstract intermediates
+        if "bank" not in cls.__dict__ and "email_type" not in cls.__dict__:
+            return
+        # If either attribute is defined locally, both must be resolvable
+        # (possibly inherited from a parent class)
+        bank = getattr(cls, "bank", None)
+        email_type = getattr(cls, "email_type", None)
+        if not isinstance(bank, str):
+            raise TypeError(
+                f"{cls.__name__} must define a 'bank: str' class attribute"
+            )
+        if not isinstance(email_type, str):
+            raise TypeError(
+                f"{cls.__name__} must define an 'email_type: str' class attribute"
+            )
+
     @staticmethod
-    def prepare_html(html: str) -> tuple[BeautifulSoup, str]:
-        """Parse HTML once and return both soup and normalized plain text."""
+    def _build_prepared_email(html: str) -> tuple[BeautifulSoup, str]:
+        """Build parsed HTML and normalized plain text."""
         soup = BeautifulSoup(html, "html.parser")
         text = normalize_whitespace(soup.get_text(separator=" ", strip=True))
         return soup, text
+
+    def prepare_html(self, html: str) -> tuple[BeautifulSoup, str]:
+        """Parse HTML once per dispatch and reuse it across fallback parsers.
+
+        Uses thread-local storage so that concurrent calls to
+        ``parse_with_parsers`` do not interfere with each other.
+        """
+        context: ParserContext | None = getattr(_thread_local, "parser_context", None)
+        if context is not None and (
+            context.html is html or context.html == html
+        ):
+            if context.prepared_email is None:
+                context.prepared_email = self._build_prepared_email(html)
+            cached_soup, cached_text = context.prepared_email
+            return copy.copy(cached_soup), cached_text
+        return self._build_prepared_email(html)
 
     @abstractmethod
     def parse(self, html: str) -> ParsedEmail:
@@ -31,16 +82,50 @@ def parse_with_parsers(
     html: str,
     parsers: Sequence[BaseEmailParser],
 ) -> ParsedEmail:
-    """Try each parser in order until one succeeds."""
-    errors: list[str] = []
-    for parser in parsers:
-        try:
-            return parser.parse(html)
-        except (ParseError, ParserStubError) as exc:
-            errors.append(f"{parser.email_type}: {type(exc).__name__}")
+    """Try each parser in order until one succeeds.
 
-    raise ParseError(
+    Unexpected (non-ParseError/ParserStubError) exceptions do not
+    short-circuit the fallback chain.  They are collected and included
+    in the final ``ParseError`` if no parser succeeds, so bugs in a
+    single parser are still surfaced.
+    """
+    errors: list[str] = []
+    unexpected_errors: list[Exception] = []
+    context = ParserContext(html=html)
+    old_context = getattr(_thread_local, "parser_context", None)
+    _thread_local.parser_context = context
+    try:
+        for parser in parsers:
+            try:
+                result = parser.parse(html)
+                # Success — but warn about any unexpected errors from earlier parsers
+                if unexpected_errors:
+                    warnings.warn(
+                        f"Parser {parser.email_type} succeeded but earlier parsers raised unexpected errors: "
+                        + "; ".join(f"{type(e).__name__}: {e}" for e in unexpected_errors),
+                        stacklevel=2,
+                    )
+                return result
+            except (ParseError, ParserStubError) as exc:
+                errors.append(f"{parser.email_type}: {type(exc).__name__}")
+            except Exception as exc:
+                # Unexpected error -- collect it but continue the chain so
+                # a bug in one parser does not prevent others from matching.
+                errors.append(
+                    f"{parser.email_type}: {type(exc).__name__}: {exc}"
+                )
+                unexpected_errors.append(exc)
+    finally:
+        _thread_local.parser_context = old_context
+
+    msg = (
         f"No parser for bank {bank!r} could handle this email. "
         f"Tried: {', '.join(p.email_type for p in parsers)}. "
         f"Errors: {'; '.join(errors)}"
     )
+    exc = ParseError(msg)
+    if unexpected_errors:
+        exc.__cause__ = unexpected_errors[0] if len(unexpected_errors) == 1 else ExceptionGroup(
+            "Unexpected parser errors", unexpected_errors
+        )
+    raise exc
