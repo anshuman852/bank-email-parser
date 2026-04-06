@@ -149,3 +149,51 @@ class TestAxisNeftStub:
         html = "<html><body>NEFT is initiated from your Axis Bank account</body></html>"
         with pytest.raises(ParseError):
             parse_email("axis", html)
+
+
+class TestHdfcRupayUpiDebitParser:
+    """Test HDFC RuPay credit card UPI debit alerts."""
+
+    SAMPLE_HTML = """
+    <html><body>
+    <table width="600" align="center">
+      <tr><td>Dear Customer,</td></tr>
+      <tr>
+        <td>
+          Rs.44.00 has been debited from your HDFC Bank RuPay Credit Card XX4242
+          to merchant123@ptys Sample Merchant on 25-03-26.
+          Your UPI transaction reference number is 123456789012.
+        </td>
+      </tr>
+      <tr><td>Warm Regards,<br>HDFC Bank</td></tr>
+    </table>
+    </body></html>
+    """
+
+    def test_parses_rupay_upi_debit(self):
+        result = parse_email("hdfc", self.SAMPLE_HTML)
+        assert result.email_type == "hdfc_rupay_upi_debit"
+        assert result.bank == "hdfc"
+        assert result.transaction.direction == "debit"
+        assert result.transaction.amount.amount == Decimal("44.00")
+        assert result.transaction.transaction_date is not None
+        assert result.transaction.transaction_date.year == 2026
+        assert result.transaction.transaction_date.month == 3
+        assert result.transaction.transaction_date.day == 25
+        assert result.transaction.card_mask == "XX4242"
+        assert result.transaction.counterparty == "Sample Merchant"
+        assert result.transaction.reference_number == "123456789012"
+        assert result.transaction.channel == "upi"
+
+    def test_parses_variant_without_merchant_name(self):
+        html = """
+        <html><body>
+        Rs.500.00 has been debited from your HDFC Bank RuPay Credit Card ending 1234
+        to VPA merchant@upi on 15-01-26. Your UPI transaction reference number is 123456789012.
+        </body></html>
+        """
+        result = parse_email("hdfc", html)
+        assert result.email_type == "hdfc_rupay_upi_debit"
+        assert result.transaction.card_mask == "1234"
+        assert result.transaction.counterparty == "merchant@upi"
+        assert result.transaction.reference_number == "123456789012"

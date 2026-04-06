@@ -264,8 +264,11 @@ class HdfcChequeClearingParser(BaseEmailParser):
 class HdfcRupayUpiDebitParser(BaseEmailParser):
     """HDFC RuPay Credit Card UPI debit.
 
-    Matches: 'Rs.500.00 has been debited from your HDFC Bank RuPay Credit Card XX1234
-    to merchant@upi Sample Store on 15-01-26.'
+    Matches:
+      'Rs.500.00 has been debited from your HDFC Bank RuPay Credit Card XX1234
+       to merchant@upi Sample Store on 15-01-26.'
+      'Rs.500.00 has been debited from your HDFC Bank RuPay Credit Card ending 1234
+       to VPA merchant@upi on 15-01-26.'
     """
 
     bank = "hdfc"
@@ -273,8 +276,9 @@ class HdfcRupayUpiDebitParser(BaseEmailParser):
 
     _pattern = re.compile(
         r"Rs\.?\s*(?P<amount>[\d,]+(?:\.\d+)?)\s+"
-        r"has\s+been\s+debited\s+from\s+your\s+HDFC\s+Bank\s+RuPay\s+Credit\s+Card\s+(?P<card>\S+)\s+"
-        r"to\s+(?P<vpa>\S+)\s+(?P<counterparty>.+?)\s+"
+        r"has\s+been\s+debited\s+from\s+your\s+HDFC\s+Bank\s+RuPay\s+Credit\s+Card\s+"
+        r"(?:ending\s+)?(?P<card>\S+)\s+"
+        r"to\s+(?:VPA\s+)?(?P<vpa>\S+)(?:\s+(?P<counterparty>.+?))?\s+"
         r"on\s+(?P<date>[\d\-]+)\.",
         re.DOTALL,
     )
@@ -301,7 +305,7 @@ class HdfcRupayUpiDebitParser(BaseEmailParser):
                 direction="debit",
                 amount=Money(amount=amount),
                 transaction_date=parse_date(match.group("date")),
-                counterparty=match.group("counterparty").strip(),
+                counterparty=(match.group("counterparty") or match.group("vpa")).strip(),
                 card_mask=match.group("card"),
                 reference_number=reference_number,
                 channel="upi",
