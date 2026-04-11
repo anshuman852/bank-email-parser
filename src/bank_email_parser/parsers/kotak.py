@@ -527,7 +527,7 @@ class KotakNachDebitParser(BaseEmailParser):
                 transaction_time=txn_time,
                 counterparty=counterparty,
                 account_mask=account,
-                reference_number=reference_number,
+                reference_number=None,
                 channel="nach",
                 raw_description=self._pattern.search(text).group(0).strip(),
             ),
