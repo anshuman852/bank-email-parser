@@ -366,7 +366,7 @@ class TestKotakNachDebitParser:
         assert result.transaction.amount.amount == Decimal("5000.00")
         assert result.transaction.account_mask == "XXXXXXXX5678"
         assert result.transaction.counterparty == "IDFC FIRST BANK"
-        assert result.transaction.reference_number == "KKBK0000000000123456"
+        assert result.transaction.reference_number is None
         assert result.transaction.channel == "nach"
 
     def test_parses_date(self):
@@ -389,7 +389,7 @@ class TestKotakNachDebitParser:
         assert result.email_type == "kotak_nach_debit"
         assert result.transaction.amount.amount == Decimal("1500.00")
         assert result.transaction.counterparty is None
-        assert result.transaction.reference_number == "KKBK1234567890"
+        assert result.transaction.reference_number is None
 
 
 class TestIciciCcReversalStub:
