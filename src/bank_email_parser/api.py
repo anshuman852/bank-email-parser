@@ -19,6 +19,7 @@ SUPPORTED_BANKS = (
     "sbi",
     "slice",
     "uboi",
+    "yesbank",
 )
 
 

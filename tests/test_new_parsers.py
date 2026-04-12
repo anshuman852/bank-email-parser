@@ -653,3 +653,135 @@ class TestHdfcRupayUpiDebitParser:
         assert result.transaction.card_mask == "1234"
         assert result.transaction.counterparty == "merchant@upi"
         assert result.transaction.reference_number == "123456789012"
+
+
+class TestYesbankCcDebitAlertParser:
+    """Test YES BANK Credit Card debit alert parser with synthetic HTML."""
+
+    SAMPLE_HTML = """
+    <html><body>
+    <p>Dear Cardmember,</p>
+    <p>INR 1,234.56 has been spent on your YES BANK Credit Card ending with 1234
+    at SAMPLE MERCHANT on 15-01-2026 at 08:30:15 pm. Avl Bal INR 50,000.00.
+    In case of suspicious transaction, to block your card, SMS BLKCC 1234 to 9876543210.</p>
+    </body></html>
+    """
+
+    def test_parses_yesbank_cc_debit(self):
+        result = parse_email("yesbank", self.SAMPLE_HTML)
+        assert result.email_type == "yesbank_cc_debit_alert"
+        assert result.bank == "yesbank"
+        assert result.transaction.direction == "debit"
+        assert result.transaction.amount.amount == Decimal("1234.56")
+        assert result.transaction.amount.currency == "INR"
+        assert result.transaction.card_mask == "1234"
+        assert result.transaction.counterparty == "SAMPLE MERCHANT"
+        assert result.transaction.channel == "card"
+
+    def test_parses_date_and_time(self):
+        result = parse_email("yesbank", self.SAMPLE_HTML)
+        assert result.transaction.transaction_date is not None
+        assert result.transaction.transaction_date.year == 2026
+        assert result.transaction.transaction_date.month == 1
+        assert result.transaction.transaction_date.day == 15
+        assert result.transaction.transaction_time is not None
+        # 08:30:15 pm = 20:30:15
+        assert result.transaction.transaction_time.hour == 20
+        assert result.transaction.transaction_time.minute == 30
+        assert result.transaction.transaction_time.second == 15
+
+    def test_parses_balance(self):
+        result = parse_email("yesbank", self.SAMPLE_HTML)
+        assert result.transaction.balance is not None
+        assert result.transaction.balance.amount == Decimal("50000.00")
+
+    def test_parses_without_balance(self):
+        html = """
+        <html><body>
+        <p>INR 500.00 has been spent on your YES BANK Credit Card ending with 1234
+        at SOME MERCHANT on 01-01-2026 at 10:15:30 am.</p>
+        </body></html>
+        """
+        result = parse_email("yesbank", html)
+        assert result.email_type == "yesbank_cc_debit_alert"
+        assert result.transaction.amount.amount == Decimal("500.00")
+        assert result.transaction.card_mask == "1234"
+        assert result.transaction.counterparty == "SOME MERCHANT"
+        assert result.transaction.balance is None
+
+    def test_parses_am_time(self):
+        html = """
+        <html><body>
+        <p>INR 100.00 has been spent on your YES BANK Credit Card ending with 5678
+        at COFFEE SHOP on 05-03-2026 at 08:30:00 am.</p>
+        </body></html>
+        """
+        result = parse_email("yesbank", html)
+        assert result.transaction.transaction_time is not None
+        assert result.transaction.transaction_time.hour == 8
+
+    def test_rejects_non_yesbank_email(self):
+        html = "<html><body>Some random email</body></html>"
+        with pytest.raises(ParseError):
+            parse_email("yesbank", html)
+
+
+class TestIciciCcUpiPaymentAlertParser:
+    """Test ICICI CC UPI payment alert parser with synthetic HTML."""
+
+    SAMPLE_HTML = """
+    <html><body>
+    <p>Dear Customer,</p>
+    <p>Greetings from ICICI Bank!</p>
+    <p>Payment of INR 12,345 towards ICICI Bank Credit Card XX1234
+    has been received through UPI on March 15, 2026. Thank you.</p>
+    <p>Sincerely,</p>
+    <p>Customer Service Team,<br>ICICI Bank Limited</p>
+    </body></html>
+    """
+
+    def test_parses_icici_cc_upi_payment(self):
+        result = parse_email("icici", self.SAMPLE_HTML)
+        assert result.email_type == "icici_cc_upi_payment_alert"
+        assert result.bank == "icici"
+        assert result.transaction.direction == "credit"
+        assert result.transaction.amount.amount == Decimal("12345")
+        assert result.transaction.amount.currency == "INR"
+        assert result.transaction.card_mask == "XX1234"
+        assert result.transaction.channel == "upi"
+        assert result.transaction.counterparty == "Payment received"
+
+    def test_parses_date(self):
+        result = parse_email("icici", self.SAMPLE_HTML)
+        assert result.transaction.transaction_date is not None
+        assert result.transaction.transaction_date.year == 2026
+        assert result.transaction.transaction_date.month == 3
+        assert result.transaction.transaction_date.day == 15
+
+    def test_parses_imps_variant(self):
+        html = """
+        <html><body>
+        <p>Payment of INR 15000 towards ICICI Bank Credit Card XX1234
+        has been received through IMPS on March 15, 2026. Thank you.</p>
+        </body></html>
+        """
+        result = parse_email("icici", html)
+        assert result.email_type == "icici_cc_upi_payment_alert"
+        assert result.transaction.amount.amount == Decimal("15000")
+        assert result.transaction.channel == "imps"
+        assert result.transaction.card_mask == "XX1234"
+
+    def test_parses_with_decimal_amount(self):
+        html = """
+        <html><body>
+        <p>Payment of INR 12,345.67 towards ICICI Bank Credit Card XX5678
+        has been received through UPI on January 05, 2026. Thank you.</p>
+        </body></html>
+        """
+        result = parse_email("icici", html)
+        assert result.transaction.amount.amount == Decimal("12345.67")
+
+    def test_rejects_non_icici_payment_email(self):
+        html = "<html><body>Some random email</body></html>"
+        with pytest.raises(ParseError):
+            parse_email("icici", html)

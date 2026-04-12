@@ -2,11 +2,13 @@
 
 Supported email types:
 - icici_cc_transaction_alert: Credit card purchase/spend alert
+- icici_cc_upi_payment_alert: Credit card payment received via UPI
 - icici_cc_payment_alert: Credit card payment received
 - icici_bank_transfer_alert: Bank account IMPS/NEFT/RTGS transfer (debit)
 - icici_net_banking_alert: Net banking payment (debit)
 - icici_cc_reversal: Credit card reversal/refund (stub -- awaiting sample email)
 """
+
 import re
 from datetime import datetime
 
@@ -42,7 +44,9 @@ def _parse_icici_time(time_str: str) -> str | None:
     # 12h format: "0923pm" or "09:23pm"
     if m := re.fullmatch(r"(\d{1,2}):?(\d{2})\s*(am|pm)", cleaned):
         try:
-            return datetime.strptime(f"{m.group(1)}:{m.group(2)} {m.group(3).upper()}", "%I:%M %p").strftime("%H:%M:00")
+            return datetime.strptime(
+                f"{m.group(1)}:{m.group(2)} {m.group(3).upper()}", "%I:%M %p"
+            ).strftime("%H:%M:00")
         except ValueError:
             return None
     return None
@@ -86,7 +90,9 @@ class IciciCcTransactionAlertParser(BaseEmailParser):
         if (amount := parse_amount(match.group("amount"))) is None:
             raise ParseError(f"Could not parse amount: {match.group('amount')!r}")
 
-        transaction_date = self._parse_datetime(match.group("date"), match.group("time"))
+        transaction_date = self._parse_datetime(
+            match.group("date"), match.group("time")
+        )
         counterparty = match.group("info").strip().rstrip(".")
 
         balance = None
@@ -117,6 +123,69 @@ class IciciCcTransactionAlertParser(BaseEmailParser):
         for fmt in ("%b %d, %Y %H:%M:%S", "%b %d, %y %H:%M:%S", "%d-%b-%Y %H:%M:%S"):
             try:
                 return datetime.strptime(combined, fmt)
+            except ValueError:
+                continue
+        return None
+
+
+class IciciCcUpiPaymentAlertParser(BaseEmailParser):
+    """ICICI credit card payment received via UPI.
+
+    Matches: 'Payment of INR <amount> towards ICICI Bank Credit Card <card>
+    has been received through UPI on <date>.'
+    """
+
+    bank = "icici"
+    email_type = "icici_cc_upi_payment_alert"
+
+    _pattern = re.compile(
+        r"Payment\s+of\s+"
+        rf"{_CUR}\s*(?P<amount>[\d,]+(?:\.\d+)?)\s+"
+        r"towards\s+ICICI\s+Bank\s+Credit\s+Card\s+(?P<card>\w+)\s+"
+        r"has\s+been\s+received\s+through\s+(?P<channel>UPI|IMPS|NEFT|RTGS)\s+"
+        r"on\s+(?P<date>.+?)\.",
+    )
+
+    def parse(self, html: str) -> ParsedEmail:
+        _, text = self.prepare_html(html)
+
+        if not (match := self._pattern.search(text)):
+            raise ParseError("Could not parse ICICI CC UPI payment alert.")
+
+        currency = _resolve_currency(match.group("currency"))
+
+        if (amount := parse_amount(match.group("amount"))) is None:
+            raise ParseError(f"Could not parse amount: {match.group('amount')!r}")
+
+        transaction_date = self._parse_date(match.group("date").strip())
+
+        return ParsedEmail(
+            email_type=self.email_type,
+            bank=self.bank,
+            transaction=TransactionAlert(
+                direction="credit",
+                amount=Money(amount=amount, currency=currency),
+                transaction_date=transaction_date,
+                card_mask=match.group("card"),
+                counterparty="Payment received",
+                channel=match.group("channel").lower(),
+                raw_description=match.group(0).strip(),
+            ),
+        )
+
+    @staticmethod
+    def _parse_date(date_str: str):
+        for fmt in (
+            "%d-%b-%Y",
+            "%d-%b-%y",
+            "%b %d, %Y",
+            "%b %d,%Y",
+            "%d/%m/%Y",
+            "%B %d, %Y",
+            "%B %d,%Y",
+        ):
+            try:
+                return datetime.strptime(date_str.strip(), fmt).date()
             except ValueError:
                 continue
         return None
@@ -215,7 +284,9 @@ class IciciBankTransferAlertParser(BaseEmailParser):
         if (amount := parse_amount(match.group("amount"))) is None:
             raise ParseError(f"Could not parse amount: {match.group('amount')!r}")
 
-        transaction_date = self._parse_datetime(match.group("date"), match.group("time"))
+        transaction_date = self._parse_datetime(
+            match.group("date"), match.group("time")
+        )
 
         reference_number = None
         if txn_match := self._txn_id_pattern.search(text):
@@ -243,7 +314,14 @@ class IciciBankTransferAlertParser(BaseEmailParser):
         if not normalized_time:
             return None
         combined = f"{date_str.strip()} {normalized_time}"
-        for fmt in ("%b %d, %Y %H:%M:%S", "%b %d, %y %H:%M:%S", "%d-%b-%Y %H:%M:%S", "%d-%b-%y %H:%M:%S", "%b %d, %Y %H:%M:00", "%b %d, %y %H:%M:00"):
+        for fmt in (
+            "%b %d, %Y %H:%M:%S",
+            "%b %d, %y %H:%M:%S",
+            "%d-%b-%Y %H:%M:%S",
+            "%d-%b-%y %H:%M:%S",
+            "%b %d, %Y %H:%M:00",
+            "%b %d, %y %H:%M:00",
+        ):
             try:
                 return datetime.strptime(combined, fmt)
             except ValueError:
@@ -314,7 +392,14 @@ class IciciNetBankingAlertParser(BaseEmailParser):
         if not normalized_time:
             return None
         combined = f"{date_str.strip()} {normalized_time}"
-        for fmt in ("%b %d, %Y %H:%M:%S", "%b %d, %y %H:%M:%S", "%d-%b-%Y %H:%M:%S", "%d-%b-%y %H:%M:%S", "%b %d, %Y %H:%M:00", "%b %d, %y %H:%M:00"):
+        for fmt in (
+            "%b %d, %Y %H:%M:%S",
+            "%b %d, %y %H:%M:%S",
+            "%d-%b-%Y %H:%M:%S",
+            "%d-%b-%y %H:%M:%S",
+            "%b %d, %Y %H:%M:00",
+            "%b %d, %y %H:%M:00",
+        ):
             try:
                 return datetime.strptime(combined, fmt)
             except ValueError:
@@ -345,6 +430,7 @@ class IciciCcReversalParser(BaseEmailParser):
 
 _PARSERS = (
     IciciCcTransactionAlertParser(),
+    IciciCcUpiPaymentAlertParser(),
     IciciCcPaymentAlertParser(),
     IciciBankTransferAlertParser(),
     IciciNetBankingAlertParser(),
