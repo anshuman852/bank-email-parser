@@ -4,6 +4,7 @@ Supported email types:
 - axis_cc_debit_alert: Credit card debit (spend) alert, parsed from label/value div layout
 - axis_neft_alert: NEFT transfer alert (stub -- awaiting sample email)
 """
+
 import re
 from datetime import datetime
 from decimal import Decimal
@@ -63,7 +64,8 @@ def _extract_label_value_pairs(soup: BeautifulSoup) -> dict[str, str]:
     pairs: dict[str, str] = {}
 
     label_divs = soup.find_all(
-        "div", style=lambda s: s and _LABEL_MARKER in s,
+        "div",
+        style=lambda s: s and _LABEL_MARKER in s,
     )
 
     for label_div in label_divs:
@@ -75,7 +77,12 @@ def _extract_label_value_pairs(soup: BeautifulSoup) -> dict[str, str]:
 
         # Only accept the immediate next sibling if it's a value div
         next_el = label_div.find_next_sibling()
-        if next_el and next_el.name == "div" and next_el.get("style") and _VALUE_MARKER in next_el.get("style", ""):
+        if (
+            next_el
+            and next_el.name == "div"
+            and next_el.get("style")
+            and _VALUE_MARKER in next_el.get("style", "")
+        ):
             pairs[_FIELD_MAP[normalized]] = next_el.get_text(strip=True)
 
     return pairs

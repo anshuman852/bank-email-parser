@@ -1,4 +1,5 @@
 """Shared parsing utilities: date/amount parsing, HTML table extraction, text normalization."""
+
 import re
 from datetime import date
 from decimal import Decimal, InvalidOperation
@@ -9,15 +10,15 @@ from bank_email_parser.models import Money
 
 # Common date formats across Indian bank emails
 _DATE_FORMATS = (
-    "%d-%b-%y",   # 19-Mar-26
-    "%d-%b-%Y",   # 19-Mar-2026
-    "%d/%m/%Y",   # 19/03/2026
-    "%d-%m-%Y",   # 19-03-2026
-    "%d/%m/%y",   # 19/03/26
-    "%d-%m-%y",   # 19-03-26
-    "%Y-%m-%d",   # 2026-03-19
-    "%d %b %Y",   # 07 Feb 2026
-    "%d %B %Y",   # 18 February 2026
+    "%d-%b-%y",  # 19-Mar-26
+    "%d-%b-%Y",  # 19-Mar-2026
+    "%d/%m/%Y",  # 19/03/2026
+    "%d-%m-%Y",  # 19-03-2026
+    "%d/%m/%y",  # 19/03/26
+    "%d-%m-%y",  # 19-03-26
+    "%Y-%m-%d",  # 2026-03-19
+    "%d %b %Y",  # 07 Feb 2026
+    "%d %B %Y",  # 18 February 2026
 )
 
 _KEY_CLEANUP = re.compile(r"[^a-z0-9\s]")

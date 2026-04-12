@@ -26,35 +26,24 @@ SUPPORTED_BANKS = (
 def parse_email(bank: str, html: str) -> ParsedEmail:
     """Parse an HTML email body for a given bank.
 
-    Dynamically imports the bank's parser module and calls its parse() function.
-    Each bank module owns its own parser list and fallback ordering.
+    Dynamically imports the bank's parser module and calls its ``parse()``
+    function. Each bank module owns its own parser list and fallback ordering.
 
-    Args:
-        bank: Bank identifier (e.g. 'icici', 'slice', 'hdfc').
-        html: The HTML body of the email.
-
-    Returns:
-        ParsedEmail with structured transaction data.
-
-    Raises:
-        UnsupportedEmailTypeError: If bank is not recognized.
-        ParseError: If no parser could handle the email.
+    Returns ParsedEmail — ``transaction`` is set for alerts, ``None`` for
+    statement emails.
     """
     if not isinstance(bank, str):
         raise UnsupportedEmailTypeError(
             f"Expected 'bank' to be a string, got {type(bank).__name__}"
         )
-
     if not isinstance(html, str):
         raise ParseError(f"Expected 'html' to be a string, got {type(html).__name__}")
 
     bank = bank.strip().lower()
-
     if bank not in SUPPORTED_BANKS:
         raise UnsupportedEmailTypeError(
             f"Unknown bank: {bank!r}. Supported: {SUPPORTED_BANKS}"
         )
-
     if len(html) > 500_000:
         raise ParseError("Input HTML too large (>500KB).")
 

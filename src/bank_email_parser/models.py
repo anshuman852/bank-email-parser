@@ -1,4 +1,5 @@
 """Pydantic models for parsed email output: Money, TransactionAlert, ParsedEmail."""
+
 from datetime import date, time
 from decimal import Decimal
 from typing import Literal
@@ -33,4 +34,5 @@ class TransactionAlert(BaseModel):
 class ParsedEmail(BaseModel):
     email_type: str
     bank: str
-    transaction: TransactionAlert
+    transaction: TransactionAlert | None = None
+    password_hint: str | None = None

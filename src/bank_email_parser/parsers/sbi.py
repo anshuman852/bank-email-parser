@@ -7,6 +7,7 @@ Supported email types:
 - sbi_cc_transaction_declined: Standing Instruction transaction declined (no funds moved)
 - sbi_payment_ack: Credit card payment acknowledgment from BillDesk
 """
+
 import re
 from datetime import datetime
 
@@ -20,8 +21,23 @@ from bank_email_parser.utils import normalize_whitespace, parse_amount
 # ISO 4217 currency codes that may appear in SBI CC foreign-currency alerts.
 # Extend this list as new currencies are encountered.
 _KNOWN_CURRENCIES = (
-    "USD", "EUR", "GBP", "JPY", "AUD", "CAD", "CHF", "SGD", "AED",
-    "HKD", "NZD", "SEK", "NOK", "DKK", "MYR", "THB", "ZAR",
+    "USD",
+    "EUR",
+    "GBP",
+    "JPY",
+    "AUD",
+    "CAD",
+    "CHF",
+    "SGD",
+    "AED",
+    "HKD",
+    "NZD",
+    "SEK",
+    "NOK",
+    "DKK",
+    "MYR",
+    "THB",
+    "ZAR",
 )
 _CURRENCY_RE = "|".join(_KNOWN_CURRENCIES)
 
@@ -89,10 +105,10 @@ class SbiCcFxTransactionAlertParser(BaseEmailParser):
     email_type = "sbi_cc_fx_transaction_alert"
 
     _pattern = re.compile(
-        rf"({_CURRENCY_RE})"          # group 1: currency code
-        r"([\d,]+\.\d{2})\s+"         # group 2: amount digits
+        rf"({_CURRENCY_RE})"  # group 1: currency code
+        r"([\d,]+\.\d{2})\s+"  # group 2: amount digits
         r"spent on your SBI Credit Card ending (\d{4})\s+"  # group 3: card mask
-        r"at (.+?) on (\d{2}/\d{2}/\d{2})",                # groups 4,5: merchant, date
+        r"at (.+?) on (\d{2}/\d{2}/\d{2})",  # groups 4,5: merchant, date
     )
 
     def parse(self, html: str) -> ParsedEmail:
@@ -139,9 +155,9 @@ class SbiCcEMandateParser(BaseEmailParser):
     email_type = "sbi_cc_emandate_debit"
 
     _pattern = re.compile(
-        r"Transaction of Rs\.([\d,]+\.\d{2})\s+"   # group 1: amount
-        r"at (.+?)\s+against E-mandate\s+"          # group 2: merchant
-        r"\(SiHub ID\s*-\s*(\S+)\)",                # group 3: SiHub ID
+        r"Transaction of Rs\.([\d,]+\.\d{2})\s+"  # group 1: amount
+        r"at (.+?)\s+against E-mandate\s+"  # group 2: merchant
+        r"\(SiHub ID\s*-\s*(\S+)\)",  # group 3: SiHub ID
     )
     # Date pattern: 'debited to your SBI Credit Card ending 5678 on 15-01-26'
     _card_date_pattern = re.compile(
@@ -257,7 +273,9 @@ class SbiPaymentAckParser(BaseEmailParser):
     email_type = "sbi_payment_ack"
 
     _card_pattern = re.compile(r"Card\s+No\s*:\s*xxxx\s+xxxx\s+xxxx\s+(\d{4})")
-    _amount_pattern = re.compile(r"Payment\s+Amount\s*\(Rs\s*Ps\)\s*:\s*([\d,]+(?:\.\d+)?)")
+    _amount_pattern = re.compile(
+        r"Payment\s+Amount\s*\(Rs\s*Ps\)\s*:\s*([\d,]+(?:\.\d+)?)"
+    )
     _date_pattern = re.compile(r"Payment\s+Date\s*:\s*(\d{1,2}\w*\s+\w+\s+\d{4})")
     _ref_pattern = re.compile(r"Transaction\s+Identification\s+Number\s*:\s*(\S+)")
 
@@ -272,7 +290,9 @@ class SbiPaymentAckParser(BaseEmailParser):
         text = normalize_whitespace(soup.get_text(separator=" ", strip=True))
 
         if not (card_match := self._card_pattern.search(text)):
-            raise ParseError("Could not parse SBI payment acknowledgment (no card number).")
+            raise ParseError(
+                "Could not parse SBI payment acknowledgment (no card number)."
+            )
 
         if not (amount_match := self._amount_pattern.search(text)):
             raise ParseError("Could not parse SBI payment acknowledgment (no amount).")

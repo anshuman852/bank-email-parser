@@ -3,6 +3,7 @@
 Supported email types:
 - onecard_debit_alert: Credit card purchase/spend alert (structured HTML with labeled fields)
 """
+
 import re
 from datetime import datetime
 
@@ -101,9 +102,7 @@ class OnecardDebitAlertParser(BaseEmailParser):
         )
 
 
-_PARSERS = (
-    OnecardDebitAlertParser(),
-)
+_PARSERS = (OnecardDebitAlertParser(),)
 
 
 def parse(html: str) -> ParsedEmail:

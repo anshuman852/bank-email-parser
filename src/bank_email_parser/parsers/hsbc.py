@@ -4,6 +4,7 @@ Supported email types:
 - hsbc_cc_debit_alert: Credit card purchase/spend alert
 - hsbc_cc_credit_alert: Credit card payment received
 """
+
 import re
 from datetime import datetime
 

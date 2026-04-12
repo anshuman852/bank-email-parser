@@ -5,9 +5,9 @@ Supported email types:
 - slice_transfer_alert: IMPS/RTGS/NEFT debit alert ('transaction of ₹X from' pattern); skips 'initiated' emails
 - slice_cc_payment_alert: Slice credit card bill repayment received
 """
+
 import re
-from decimal import Decimal
-from decimal import InvalidOperation
+from decimal import Decimal, InvalidOperation
 
 from bank_email_parser.exceptions import ParseError
 from bank_email_parser.models import Money, ParsedEmail, TransactionAlert
@@ -17,6 +17,8 @@ from bank_email_parser.utils import (
     parse_date,
 )
 
+
+
 # Amount pattern that handles zero-width non-joiner (\u200c) between digit groups
 _AMT = r"[\d,\u200c]+(?:\.\d+)?"
 # Account reference: "account xx0298", "a/c xx0298", "account ending XX0298"
@@ -24,10 +26,17 @@ _ACCT = r"(?:a/c|account(?:\s+ending)?)\s+(?P<account>[\w\-*]+)"
 
 # All table keys we care about across Slice email types
 _EXPECTED_TABLE_KEYS = {
-    "transaction date", "date",
-    "from", "to", "sender name",
-    "beneficiary name", "beneficiary acc no", "beneficiary bank",
-    "rrn", "imps ref no", "rtgs ref no",
+    "transaction date",
+    "date",
+    "from",
+    "to",
+    "sender name",
+    "beneficiary name",
+    "beneficiary acc no",
+    "beneficiary bank",
+    "rrn",
+    "imps ref no",
+    "rtgs ref no",
 }
 
 
@@ -129,10 +138,12 @@ class SliceTransferAlertParser(BaseEmailParser):
     # Pattern to detect "initiated" emails that should be skipped (the
     # "successful"/"completed" email will arrive separately).
     _initiated_pattern = re.compile(
-        r"has\s+been\s+initiated", re.IGNORECASE,
+        r"has\s+been\s+initiated",
+        re.IGNORECASE,
     )
     _completed_pattern = re.compile(
-        r"(?:is\s+successful|has\s+been\s+completed|successfully)", re.IGNORECASE,
+        r"(?:is\s+successful|has\s+been\s+completed|successfully)",
+        re.IGNORECASE,
     )
 
     def parse(self, html: str) -> ParsedEmail:
@@ -143,8 +154,12 @@ class SliceTransferAlertParser(BaseEmailParser):
 
         # Skip "initiated" emails to avoid duplicates -- the corresponding
         # "successful"/"completed" email will be parsed instead.
-        if self._initiated_pattern.search(text) and not self._completed_pattern.search(text):
-            raise ParseError("Skipping 'initiated' transfer email (not yet successful).")
+        if self._initiated_pattern.search(text) and not self._completed_pattern.search(
+            text
+        ):
+            raise ParseError(
+                "Skipping 'initiated' transfer email (not yet successful)."
+            )
 
         amount = _clean_amount(match.group("amount"))
         channel = match.group("channel").lower()
@@ -213,10 +228,28 @@ class SliceCcPaymentAlertParser(BaseEmailParser):
         )
 
 
+class SliceStatementEmailParser(BaseEmailParser):
+    """Slice account statement email."""
+
+    bank = "slice"
+    email_type = "slice_account_statement"
+
+    def parse(self, html: str) -> ParsedEmail:
+        _, text = self.prepare_html(html)
+        if "statement" not in text.lower() or "password" not in text.lower():
+            raise ParseError("Not a Slice statement email")
+        return ParsedEmail(
+            email_type=self.email_type,
+            bank=self.bank,
+            password_hint="Date of birth in DDMMYYYY format",
+        )
+
+
 _PARSERS = (
     SliceTransactionAlertParser(),
     SliceTransferAlertParser(),
     SliceCcPaymentAlertParser(),
+    SliceStatementEmailParser(),
 )
 
 

@@ -6,6 +6,7 @@ Supported email types:
 - indusind_account_alert: Savings account credit/debit alert (UPI, inline prose)
 - indusind_cc_payment_alert: Credit card payment confirmation
 """
+
 import re
 from datetime import datetime
 
@@ -15,14 +16,15 @@ from bank_email_parser.exceptions import ParseError
 from bank_email_parser.models import Money, ParsedEmail, TransactionAlert
 from bank_email_parser.parsers.base import BaseEmailParser, parse_with_parsers
 from bank_email_parser.utils import (
-    extract_table_pairs,
     normalize_key,
     parse_amount,
     parse_date,
 )
 
 
-def _parse_indusind_datetime(date_str: str, time_str: str | None = None) -> datetime | None:
+def _parse_indusind_datetime(
+    date_str: str, time_str: str | None = None
+) -> datetime | None:
     """Parse IndusInd date strings with optional 12-hour time."""
     cleaned_date = date_str.strip()
     if time_str is not None:
@@ -174,7 +176,12 @@ class IndusindDcTransactionAlertParser(BaseEmailParser):
         re.IGNORECASE,
     )
 
-    _FIELD_PREFIXES = {"merchant name": "merchant", "amount": "amount", "date": "date", "time": "time"}
+    _FIELD_PREFIXES = {
+        "merchant name": "merchant",
+        "amount": "amount",
+        "date": "date",
+        "time": "time",
+    }
 
     def _extract_fields(self, soup: BeautifulSoup) -> dict[str, str]:
         """Extract table fields using prefix matching on normalized keys.
@@ -273,7 +280,9 @@ class IndusindAccountAlertParser(BaseEmailParser):
         if (amount := parse_amount(match.group("amount"))) is None:
             raise ParseError(f"Could not parse amount: {match.group('amount')!r}")
 
-        direction = "credit" if match.group("direction").lower() == "credited" else "debit"
+        direction = (
+            "credit" if match.group("direction").lower() == "credited" else "debit"
+        )
         description = match.group("description").rstrip(".")
 
         # Extract channel from description (e.g. "UPI/..." -> "upi")
@@ -299,11 +308,29 @@ class IndusindAccountAlertParser(BaseEmailParser):
         )
 
 
+class IndusindStatementEmailParser(BaseEmailParser):
+    """IndusInd account statement email."""
+
+    bank = "indusind"
+    email_type = "indusind_account_statement"
+
+    def parse(self, html: str) -> ParsedEmail:
+        _, text = self.prepare_html(html)
+        if "statement" not in text.lower() or "password" not in text.lower():
+            raise ParseError("Not an IndusInd statement email")
+        return ParsedEmail(
+            email_type=self.email_type,
+            bank=self.bank,
+            password_hint="First 4 characters of name (uppercase) + DDMM of birth",
+        )
+
+
 _PARSERS = (
     IndusindCcTransactionAlertParser(),
     IndusindDcTransactionAlertParser(),
     IndusindAccountAlertParser(),
     IndusindCcPaymentAlertParser(),
+    IndusindStatementEmailParser(),
 )
 
 

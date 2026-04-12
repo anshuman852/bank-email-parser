@@ -3,6 +3,7 @@
 Supported email types:
 - equitas_cc_alert: Credit card transaction (spend) alert
 """
+
 import re
 from datetime import datetime
 from decimal import Decimal

@@ -428,6 +428,26 @@ class IciciCcReversalParser(BaseEmailParser):
         )
 
 
+class IciciStatementEmailParser(BaseEmailParser):
+    """ICICI account statement email — extracts password hint."""
+
+    bank = "icici"
+    email_type = "icici_account_statement"
+
+    def parse(self, html: str) -> ParsedEmail:
+        _, text = self.prepare_html(html)
+        text_lower = text.lower()
+        has_statement = "statement" in text_lower and "icici" in text_lower
+        has_attachment = "password" in text_lower or "attached" in text_lower or "download" in text_lower
+        if not (has_statement and has_attachment):
+            raise ParseError("Not an ICICI statement email")
+        return ParsedEmail(
+            email_type=self.email_type,
+            bank=self.bank,
+            password_hint="First 4 letters of name (uppercase) + DDMM of birth",
+        )
+
+
 _PARSERS = (
     IciciCcTransactionAlertParser(),
     IciciCcUpiPaymentAlertParser(),
@@ -435,6 +455,7 @@ _PARSERS = (
     IciciBankTransferAlertParser(),
     IciciNetBankingAlertParser(),
     IciciCcReversalParser(),
+    IciciStatementEmailParser(),
 )
 
 

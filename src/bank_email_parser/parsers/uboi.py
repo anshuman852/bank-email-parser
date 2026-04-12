@@ -4,6 +4,7 @@ Supported email types:
 - uboi_debit_alert: Account debit alert (IMPS/NEFT/RTGS), parsed from structured
   HTML with a 'Transaction Details' heading and a <ul><li> list.
 """
+
 from bank_email_parser.exceptions import ParseError
 from bank_email_parser.models import Money, ParsedEmail, TransactionAlert
 from bank_email_parser.parsers.base import BaseEmailParser, parse_with_parsers
@@ -83,8 +84,26 @@ class UboiDebitAlertParser(BaseEmailParser):
         )
 
 
+class UboiStatementEmailParser(BaseEmailParser):
+    """UBOI account statement email."""
+
+    bank = "uboi"
+    email_type = "uboi_account_statement"
+
+    def parse(self, html: str) -> ParsedEmail:
+        _, text = self.prepare_html(html)
+        if "statement" not in text.lower() or "password" not in text.lower():
+            raise ParseError("Not a UBOI statement email")
+        return ParsedEmail(
+            email_type=self.email_type,
+            bank=self.bank,
+            password_hint="First 4 characters of name (uppercase) + DDMM of birth",
+        )
+
+
 _PARSERS = (
     UboiDebitAlertParser(),
+    UboiStatementEmailParser(),
 )
 
 
