@@ -1,4 +1,5 @@
 """Base parser class and fallback-chain dispatcher for bank email parsers."""
+
 import copy
 import threading
 import warnings
@@ -40,9 +41,7 @@ class BaseEmailParser(ABC):
         bank = getattr(cls, "bank", None)
         email_type = getattr(cls, "email_type", None)
         if not isinstance(bank, str):
-            raise TypeError(
-                f"{cls.__name__} must define a 'bank: str' class attribute"
-            )
+            raise TypeError(f"{cls.__name__} must define a 'bank: str' class attribute")
         if not isinstance(email_type, str):
             raise TypeError(
                 f"{cls.__name__} must define an 'email_type: str' class attribute"
@@ -62,9 +61,7 @@ class BaseEmailParser(ABC):
         ``parse_with_parsers`` do not interfere with each other.
         """
         context: ParserContext | None = getattr(_thread_local, "parser_context", None)
-        if context is not None and (
-            context.html is html or context.html == html
-        ):
+        if context is not None and (context.html is html or context.html == html):
             if context.prepared_email is None:
                 context.prepared_email = self._build_prepared_email(html)
             cached_soup, cached_text = context.prepared_email
@@ -102,7 +99,9 @@ def parse_with_parsers(
                 if unexpected_errors:
                     warnings.warn(
                         f"Parser {parser.email_type} succeeded but earlier parsers raised unexpected errors: "
-                        + "; ".join(f"{type(e).__name__}: {e}" for e in unexpected_errors),
+                        + "; ".join(
+                            f"{type(e).__name__}: {e}" for e in unexpected_errors
+                        ),
                         stacklevel=2,
                     )
                 return result
@@ -111,9 +110,7 @@ def parse_with_parsers(
             except Exception as exc:
                 # Unexpected error -- collect it but continue the chain so
                 # a bug in one parser does not prevent others from matching.
-                errors.append(
-                    f"{parser.email_type}: {type(exc).__name__}: {exc}"
-                )
+                errors.append(f"{parser.email_type}: {type(exc).__name__}: {exc}")
                 unexpected_errors.append(exc)
     finally:
         _thread_local.parser_context = old_context
@@ -125,7 +122,9 @@ def parse_with_parsers(
     )
     exc = ParseError(msg)
     if unexpected_errors:
-        exc.__cause__ = unexpected_errors[0] if len(unexpected_errors) == 1 else ExceptionGroup(
-            "Unexpected parser errors", unexpected_errors
+        exc.__cause__ = (
+            unexpected_errors[0]
+            if len(unexpected_errors) == 1
+            else ExceptionGroup("Unexpected parser errors", unexpected_errors)
         )
     raise exc

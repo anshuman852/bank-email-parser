@@ -7,6 +7,7 @@ Supported email types:
 - kotak811_transaction: Kotak811 app transaction (from no-reply@kotak.com)
 - kotak_cc_bill_paid: Credit card bill payment confirmation (Kotak811 paying another bank's CC)
 """
+
 import re
 from datetime import datetime
 
@@ -16,7 +17,9 @@ from bank_email_parser.parsers.base import BaseEmailParser, parse_with_parsers
 from bank_email_parser.utils import parse_amount, parse_date
 
 
-def _parse_kotak_datetime(date_str: str, time_str: str | None = None) -> datetime | None:
+def _parse_kotak_datetime(
+    date_str: str, time_str: str | None = None
+) -> datetime | None:
     """Parse Kotak date (DD/MM/YYYY) with optional time (HH:MM:SS)."""
     cleaned = date_str.strip()
     if time_str:
@@ -334,7 +337,9 @@ class KotakCcBillPaidParser(BaseEmailParser):
             raise ParseError("Could not find bill amount in Kotak CC bill paid email.")
 
         if (amount := parse_amount(amount_match.group("amount"))) is None:
-            raise ParseError(f"Could not parse amount: {amount_match.group('amount')!r}")
+            raise ParseError(
+                f"Could not parse amount: {amount_match.group('amount')!r}"
+            )
 
         card_mask = None
         if card_match := self._card_pattern.search(text):

@@ -7,6 +7,7 @@ Supported email types:
 - icici_net_banking_alert: Net banking payment (debit)
 - icici_cc_reversal: Credit card reversal/refund (stub -- awaiting sample email)
 """
+
 import re
 from datetime import datetime
 
@@ -42,7 +43,9 @@ def _parse_icici_time(time_str: str) -> str | None:
     # 12h format: "0923pm" or "09:23pm"
     if m := re.fullmatch(r"(\d{1,2}):?(\d{2})\s*(am|pm)", cleaned):
         try:
-            return datetime.strptime(f"{m.group(1)}:{m.group(2)} {m.group(3).upper()}", "%I:%M %p").strftime("%H:%M:00")
+            return datetime.strptime(
+                f"{m.group(1)}:{m.group(2)} {m.group(3).upper()}", "%I:%M %p"
+            ).strftime("%H:%M:00")
         except ValueError:
             return None
     return None
@@ -86,7 +89,9 @@ class IciciCcTransactionAlertParser(BaseEmailParser):
         if (amount := parse_amount(match.group("amount"))) is None:
             raise ParseError(f"Could not parse amount: {match.group('amount')!r}")
 
-        transaction_date = self._parse_datetime(match.group("date"), match.group("time"))
+        transaction_date = self._parse_datetime(
+            match.group("date"), match.group("time")
+        )
         counterparty = match.group("info").strip().rstrip(".")
 
         balance = None
@@ -215,7 +220,9 @@ class IciciBankTransferAlertParser(BaseEmailParser):
         if (amount := parse_amount(match.group("amount"))) is None:
             raise ParseError(f"Could not parse amount: {match.group('amount')!r}")
 
-        transaction_date = self._parse_datetime(match.group("date"), match.group("time"))
+        transaction_date = self._parse_datetime(
+            match.group("date"), match.group("time")
+        )
 
         reference_number = None
         if txn_match := self._txn_id_pattern.search(text):
@@ -243,7 +250,14 @@ class IciciBankTransferAlertParser(BaseEmailParser):
         if not normalized_time:
             return None
         combined = f"{date_str.strip()} {normalized_time}"
-        for fmt in ("%b %d, %Y %H:%M:%S", "%b %d, %y %H:%M:%S", "%d-%b-%Y %H:%M:%S", "%d-%b-%y %H:%M:%S", "%b %d, %Y %H:%M:00", "%b %d, %y %H:%M:00"):
+        for fmt in (
+            "%b %d, %Y %H:%M:%S",
+            "%b %d, %y %H:%M:%S",
+            "%d-%b-%Y %H:%M:%S",
+            "%d-%b-%y %H:%M:%S",
+            "%b %d, %Y %H:%M:00",
+            "%b %d, %y %H:%M:00",
+        ):
             try:
                 return datetime.strptime(combined, fmt)
             except ValueError:
@@ -314,7 +328,14 @@ class IciciNetBankingAlertParser(BaseEmailParser):
         if not normalized_time:
             return None
         combined = f"{date_str.strip()} {normalized_time}"
-        for fmt in ("%b %d, %Y %H:%M:%S", "%b %d, %y %H:%M:%S", "%d-%b-%Y %H:%M:%S", "%d-%b-%y %H:%M:%S", "%b %d, %Y %H:%M:00", "%b %d, %y %H:%M:00"):
+        for fmt in (
+            "%b %d, %Y %H:%M:%S",
+            "%b %d, %y %H:%M:%S",
+            "%d-%b-%Y %H:%M:%S",
+            "%d-%b-%y %H:%M:%S",
+            "%b %d, %Y %H:%M:00",
+            "%b %d, %y %H:%M:00",
+        ):
             try:
                 return datetime.strptime(combined, fmt)
             except ValueError:
@@ -343,12 +364,33 @@ class IciciCcReversalParser(BaseEmailParser):
         )
 
 
+class IciciStatementEmailParser(BaseEmailParser):
+    """ICICI account statement email — extracts password hint."""
+
+    bank = "icici"
+    email_type = "icici_account_statement"
+
+    def parse(self, html: str) -> ParsedEmail:
+        _, text = self.prepare_html(html)
+        text_lower = text.lower()
+        has_statement = "statement" in text_lower and "icici" in text_lower
+        has_attachment = "password" in text_lower or "attached" in text_lower or "download" in text_lower
+        if not (has_statement and has_attachment):
+            raise ParseError("Not an ICICI statement email")
+        return ParsedEmail(
+            email_type=self.email_type,
+            bank=self.bank,
+            password_hint="First 4 letters of name (uppercase) + DDMM of birth",
+        )
+
+
 _PARSERS = (
     IciciCcTransactionAlertParser(),
     IciciCcPaymentAlertParser(),
     IciciBankTransferAlertParser(),
     IciciNetBankingAlertParser(),
     IciciCcReversalParser(),
+    IciciStatementEmailParser(),
 )
 
 

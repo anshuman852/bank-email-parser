@@ -8,11 +8,14 @@ Supported email types:
 - hdfc_rupay_upi_debit: RuPay credit card UPI debit
 - hdfc_imps_alert: IMPS transfer alert
 """
+
 import re
 from datetime import datetime
 
 from bank_email_parser.exceptions import ParseError
 from bank_email_parser.models import Money, ParsedEmail, TransactionAlert
+
+
 from bank_email_parser.parsers.base import BaseEmailParser, parse_with_parsers
 from bank_email_parser.utils import parse_amount, parse_date
 
@@ -305,7 +308,9 @@ class HdfcRupayUpiDebitParser(BaseEmailParser):
                 direction="debit",
                 amount=Money(amount=amount),
                 transaction_date=parse_date(match.group("date")),
-                counterparty=(match.group("counterparty") or match.group("vpa")).strip(),
+                counterparty=(
+                    match.group("counterparty") or match.group("vpa")
+                ).strip(),
                 card_mask=match.group("card"),
                 reference_number=reference_number,
                 channel="upi",
@@ -364,6 +369,26 @@ class HdfcImpsAlertParser(BaseEmailParser):
         )
 
 
+class HdfcStatementEmailParser(BaseEmailParser):
+    """HDFC account statement email."""
+
+    bank = "hdfc"
+    email_type = "hdfc_account_statement"
+
+    def parse(self, html: str) -> ParsedEmail:
+        _, text = self.prepare_html(html)
+        text_lower = text.lower()
+        has_statement = "smartstatement" in text_lower or "account statement" in text_lower
+        has_attachment = "password" in text_lower or "attached" in text_lower
+        if not (has_statement and has_attachment):
+            raise ParseError("Not an HDFC statement email")
+        return ParsedEmail(
+            email_type=self.email_type,
+            bank=self.bank,
+            password_hint="Customer ID as the password",
+        )
+
+
 _PARSERS = (
     HdfcUpiAlertParser(),
     HdfcCardDebitAlertParser(),
@@ -371,6 +396,7 @@ _PARSERS = (
     HdfcChequeClearingParser(),
     HdfcRupayUpiDebitParser(),
     HdfcImpsAlertParser(),
+    HdfcStatementEmailParser(),
 )
 
 

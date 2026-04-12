@@ -4,6 +4,7 @@ Supported email types:
 - idfc_account_alert: Savings account credit/debit alert (RTGS/NEFT/IMPS)
 - idfc_cc_debit_alert: Credit card spend alert
 """
+
 import re
 from datetime import datetime
 
@@ -159,9 +160,27 @@ class IdfcCcDebitAlertParser(BaseEmailParser):
         )
 
 
+class IdfcStatementEmailParser(BaseEmailParser):
+    """IDFC account statement email."""
+
+    bank = "idfc"
+    email_type = "idfc_account_statement"
+
+    def parse(self, html: str) -> ParsedEmail:
+        _, text = self.prepare_html(html)
+        if "statement" not in text.lower() or "password" not in text.lower():
+            raise ParseError("Not an IDFC statement email")
+        return ParsedEmail(
+            email_type=self.email_type,
+            bank=self.bank,
+            password_hint="Date of birth in DDMMYYYY format",
+        )
+
+
 _PARSERS = (
     IdfcAccountAlertParser(),
     IdfcCcDebitAlertParser(),
+    IdfcStatementEmailParser(),
 )
 
 
