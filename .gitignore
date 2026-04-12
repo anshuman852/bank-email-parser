@@ -18,8 +18,6 @@ wheels/
 *.mbox
 *.pst
 
-# Lock file (library — consumers resolve their own deps)
-uv.lock
 
 # Some unsanitized test data
 data/
