@@ -6,7 +6,6 @@ Supported email types:
 """
 
 import re
-from datetime import datetime
 from decimal import Decimal
 
 from bs4 import BeautifulSoup
@@ -14,7 +13,7 @@ from bs4 import BeautifulSoup
 from bank_email_parser.exceptions import ParseError, ParserStubError
 from bank_email_parser.models import Money, ParsedEmail, TransactionAlert
 from bank_email_parser.parsers.base import BaseEmailParser, parse_with_parsers
-from bank_email_parser.utils import normalize_whitespace, parse_date
+from bank_email_parser.utils import normalize_whitespace, parse_date, parse_datetime
 
 # CSS style fragments used to identify label vs value divs in the card layout
 _LABEL_MARKER = "color:#777777"
@@ -113,21 +112,12 @@ class AxisCcDebitAlertParser(BaseEmailParser):
         transaction_time = None
         if date_raw := fields.get("date_time"):
             # Format: '28-12-2025, 19:08:29 IST'
-            date_part = date_raw.split(",")[0].strip()
-            transaction_date = parse_date(date_part)
-            # Extract the time portion after the comma, stripping timezone suffix
-            parts = date_raw.split(",", 1)
-            if len(parts) == 2:
-                time_part = parts[1].strip()
-                # Remove timezone suffix like 'IST'
-                time_part = re.sub(r"\s+[A-Z]{2,4}$", "", time_part).strip()
-                if time_part:
-                    for fmt in ("%H:%M:%S", "%H:%M"):
-                        try:
-                            transaction_time = datetime.strptime(time_part, fmt).time()
-                            break
-                        except ValueError:
-                            continue
+            if dt := parse_datetime(date_raw):
+                transaction_date = dt.date()
+                transaction_time = dt.time()
+            else:
+                # If the time portion is malformed, keep the date.
+                transaction_date = parse_date(date_raw.split(",", 1)[0])
 
         balance = None
         if balance_raw := fields.get("balance"):

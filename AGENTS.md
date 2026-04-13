@@ -4,7 +4,7 @@
 
 - **Run tests:** `uv run pytest`
 - **Run a single test class:** `uv run pytest tests/test_new_parsers.py::TestYesbankCcDebitAlertParser -v`
-- **Python:** 3.14+ · **Package manager:** uv · **Deps:** pydantic>=2.0, beautifulsoup4>=4.12
+- **Python:** 3.14+ · **Package manager:** uv · **Deps:** pydantic>=2.0, beautifulsoup4>=4.12, python-dateutil>=2.9
 - **No CI, no linter, no formatter configured** — just pytest
 
 ## Architecture
@@ -16,16 +16,18 @@ Each parser module has:
 - A `_PARSERS` tuple (order matters — first match wins)
 - A module-level `parse(html)` delegating to `parse_with_parsers(bank, html, _PARSERS)`
 
-## Adding a new bank
+## Adding a new bank or email type
+
+> **Use the `add-bank-parser` skill** (`.agents/skills/add-bank-parser/SKILL.md`) — it walks through extracting HTML from a `.eml`, writing the parser, and testing it end-to-end.
+
+Manual outline:
 
 1. Create `src/bank_email_parser/parsers/{bank}.py` — follow any existing parser (e.g. `yesbank.py` is minimal)
 2. Add bank ID to `SUPPORTED_BANKS` tuple in `api.py`
 3. Add tests in `tests/test_new_parsers.py` using **synthetic HTML** (never real email data)
 4. If you have a real `.eml`, put it anonymised in `data/` (gitignored)
 
-## Adding a new email type to an existing bank
-
-Add a new `BaseEmailParser` subclass in the bank's parser module. Place it **before broader parsers** in `_PARSERS` — the dispatcher uses first-match semantics. Stubs go last.
+For a new email type on an existing bank, add a new `BaseEmailParser` subclass to that bank's module. Place it **before broader parsers** in `_PARSERS` — the dispatcher uses first-match semantics. Stubs go last.
 
 ## Critical rules
 
@@ -35,8 +37,9 @@ Add a new `BaseEmailParser` subclass in the bank's parser module. Place it **bef
 - **`direction` accepts `"declined"`** as a third option beyond `"debit"`/`"credit"` — used when a transaction was attempted but no funds moved (e.g. SBI declined SI).
 - **HTML input is flattened to text** via `normalize_whitespace(soup.get_text(...))` before regex matching. This collapses `\xa0`, `\u200c`, and all whitespace runs to single spaces.
 - **`parse_with_parsers` reuses parsed HTML** across fallback parsers via thread-local context. Don't re-parse HTML inside `parse()`.
+- **Always use `utils.parse_date` / `utils.parse_datetime`** for any date/time string. They wrap `dateutil.parser.parse(..., dayfirst=True)` — don't reintroduce `datetime.strptime` with per-parser format lists.
 
-## Known stubs (intentional `NotImplementedError`)
+## Known stubs (raise `ParserStubError`)
 
 - `axis_neft_alert` — no sample email
 - `icici_cc_reversal` — no sample email

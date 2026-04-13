@@ -5,12 +5,11 @@ Supported email types:
 """
 
 import re
-from datetime import datetime
 
 from bank_email_parser.exceptions import ParseError
 from bank_email_parser.models import Money, ParsedEmail, TransactionAlert
 from bank_email_parser.parsers.base import BaseEmailParser, parse_with_parsers
-from bank_email_parser.utils import parse_amount
+from bank_email_parser.utils import parse_amount, parse_date, parse_datetime
 
 
 class YesbankCcDebitAlertParser(BaseEmailParser):
@@ -44,25 +43,14 @@ class YesbankCcDebitAlertParser(BaseEmailParser):
         card_mask = match.group(2)
         counterparty = match.group(3).strip() or None
 
-        # Parse date + time together
-        date_str = match.group(4)
-        time_str = match.group(5)
-        ampm = match.group(6).lower()
-
-        txn_date = None
         txn_time = None
-        try:
-            dt = datetime.strptime(
-                f"{date_str} {time_str} {ampm}", "%d-%m-%Y %I:%M:%S %p"
-            )
+        if dt := parse_datetime(
+            f"{match.group(4)} {match.group(5)} {match.group(6)}"
+        ):
             txn_date = dt.date()
             txn_time = dt.time()
-        except ValueError:
-            # Fallback: try date only
-            try:
-                txn_date = datetime.strptime(date_str, "%d-%m-%Y").date()
-            except ValueError:
-                pass
+        else:
+            txn_date = parse_date(match.group(4))
 
         # Available balance (optional)
         balance = None

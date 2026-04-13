@@ -10,6 +10,7 @@ requires-python = ">=3.14"
 dependencies = [
     "pydantic>=2.0",
     "beautifulsoup4>=4.12",
+    "python-dateutil>=2.9.0.post0",
 ]
 
 [build-system]

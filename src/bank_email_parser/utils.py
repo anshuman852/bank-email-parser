@@ -1,25 +1,13 @@
 """Shared parsing utilities: date/amount parsing, HTML table extraction, text normalization."""
 
 import re
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
 from bs4 import BeautifulSoup
+from dateutil import parser as _dateutil_parser
 
 from bank_email_parser.models import Money
-
-# Common date formats across Indian bank emails
-_DATE_FORMATS = (
-    "%d-%b-%y",  # 19-Mar-26
-    "%d-%b-%Y",  # 19-Mar-2026
-    "%d/%m/%Y",  # 19/03/2026
-    "%d-%m-%Y",  # 19-03-2026
-    "%d/%m/%y",  # 19/03/26
-    "%d-%m-%y",  # 19-03-26
-    "%Y-%m-%d",  # 2026-03-19
-    "%d %b %Y",  # 07 Feb 2026
-    "%d %B %Y",  # 18 February 2026
-)
 
 _KEY_CLEANUP = re.compile(r"[^a-z0-9\s]")
 _WHITESPACE = re.compile(r"\s+")
@@ -35,30 +23,25 @@ def normalize_key(raw: str) -> str:
     return _WHITESPACE.sub(" ", cleaned).strip()
 
 
-def parse_date(date_str: str) -> date | None:
-    """Try common Indian bank date formats. Returns None on failure.
+def parse_datetime(value: str) -> datetime | None:
+    """Parse a date or date+time string with dateutil (dayfirst=True).
 
-    Normalizes month names to title case before parsing so that
-    uppercase abbreviations like 'MAR' work on strict-locale platforms
-    where ``strptime %b`` expects 'Mar'.
+    Handles the wide variety of Indian bank date formats without needing
+    a format list: 19-Mar-26, 19/03/2026, 28-MAR-2026, 07 Feb 2026,
+    'Mar 15, 2026 14:30:00', '15 Jan, 2026 at 16:35:07', etc.
+
+    Returns None on failure.
     """
-    from datetime import datetime
-
-    cleaned = date_str.strip()
-    # Normalize uppercase/lowercase month names to title case for %b/%B formats
-    # E.g. "19-MAR-26" -> "19-Mar-26", "07 FEB 2026" -> "07 Feb 2026"
-    normalized = _normalize_month_case(cleaned)
-    for fmt in _DATE_FORMATS:
-        try:
-            return datetime.strptime(normalized, fmt).date()
-        except ValueError:
-            continue
-    return None
+    try:
+        return _dateutil_parser.parse(value.strip(), dayfirst=True)
+    except (ValueError, TypeError, OverflowError):
+        return None
 
 
-def _normalize_month_case(date_str: str) -> str:
-    """Title-case alphabetic tokens in a date string for strptime %b/%B compatibility."""
-    return re.sub(r"[A-Za-z]+", lambda m: m.group().title(), date_str)
+def parse_date(date_str: str) -> date | None:
+    """Parse a date-only string via dateutil. Returns None on failure."""
+    dt = parse_datetime(date_str)
+    return dt.date() if dt else None
 
 
 def parse_amount(raw: str) -> Decimal | None:

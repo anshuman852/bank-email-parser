@@ -10,12 +10,11 @@ Supported email types:
 """
 
 import re
-from datetime import datetime
 
 from bank_email_parser.exceptions import ParseError, ParserStubError
 from bank_email_parser.models import Money, ParsedEmail, TransactionAlert
 from bank_email_parser.parsers.base import BaseEmailParser, parse_with_parsers
-from bank_email_parser.utils import parse_amount
+from bank_email_parser.utils import parse_amount, parse_date, parse_datetime
 
 
 def _resolve_currency(raw: str) -> str:
@@ -29,31 +28,18 @@ def _resolve_currency(raw: str) -> str:
     return "INR"
 
 
-def _parse_icici_time(time_str: str) -> str | None:
-    """Normalize ICICI time formats to HH:MM:SS.
-
-    Handles: '03:27:39', '09:23 p.m.', '09:15 p.m.', '23:02 hours'
-    """
-    cleaned = time_str.strip().lower().replace(".", "").replace(" ", "")
-    # Try 24h format first: "03:27:39"
-    if m := re.fullmatch(r"(\d{2}):(\d{2}):(\d{2})", cleaned):
-        return cleaned
-    # 24h format without seconds: "23:02hours" or "23:02"
-    if m := re.fullmatch(r"(\d{2}):(\d{2})(?:hours)?", cleaned):
-        return f"{m.group(1)}:{m.group(2)}:00"
-    # 12h format: "0923pm" or "09:23pm"
-    if m := re.fullmatch(r"(\d{1,2}):?(\d{2})\s*(am|pm)", cleaned):
-        try:
-            return datetime.strptime(
-                f"{m.group(1)}:{m.group(2)} {m.group(3).upper()}", "%I:%M %p"
-            ).strftime("%H:%M:00")
-        except ValueError:
-            return None
-    return None
-
-
 # Shared currency pattern: any 3-letter uppercase code, or Rs./₹
 _CUR = r"(?P<currency>[A-Z]{3}|Rs\.?|₹)"
+
+# ICICI netbanking alerts append "hours" to 24h times ('23:02 hours'); dateutil
+# doesn't understand that suffix, so strip it before parsing.
+_HOURS_SUFFIX = re.compile(r"\s*hours\s*$", re.IGNORECASE)
+
+
+def _parse_icici_datetime(date_str: str, time_str: str):
+    """Combine ICICI date + time strings and hand to dateutil."""
+    cleaned_time = _HOURS_SUFFIX.sub("", time_str.strip())
+    return parse_datetime(f"{date_str.strip()} {cleaned_time}")
 
 
 class IciciCcTransactionAlertParser(BaseEmailParser):
@@ -90,9 +76,7 @@ class IciciCcTransactionAlertParser(BaseEmailParser):
         if (amount := parse_amount(match.group("amount"))) is None:
             raise ParseError(f"Could not parse amount: {match.group('amount')!r}")
 
-        transaction_date = self._parse_datetime(
-            match.group("date"), match.group("time")
-        )
+        transaction_date = _parse_icici_datetime(match.group("date"), match.group("time"))
         counterparty = match.group("info").strip().rstrip(".")
 
         balance = None
@@ -116,16 +100,6 @@ class IciciCcTransactionAlertParser(BaseEmailParser):
                 raw_description=match.group(0).strip(),
             ),
         )
-
-    @staticmethod
-    def _parse_datetime(date_str: str, time_str: str) -> datetime | None:
-        combined = f"{date_str.strip()} {time_str.strip()}"
-        for fmt in ("%b %d, %Y %H:%M:%S", "%b %d, %y %H:%M:%S", "%d-%b-%Y %H:%M:%S"):
-            try:
-                return datetime.strptime(combined, fmt)
-            except ValueError:
-                continue
-        return None
 
 
 class IciciCcUpiPaymentAlertParser(BaseEmailParser):
@@ -157,7 +131,7 @@ class IciciCcUpiPaymentAlertParser(BaseEmailParser):
         if (amount := parse_amount(match.group("amount"))) is None:
             raise ParseError(f"Could not parse amount: {match.group('amount')!r}")
 
-        transaction_date = self._parse_date(match.group("date").strip())
+        transaction_date = parse_date(match.group("date"))
 
         return ParsedEmail(
             email_type=self.email_type,
@@ -172,23 +146,6 @@ class IciciCcUpiPaymentAlertParser(BaseEmailParser):
                 raw_description=match.group(0).strip(),
             ),
         )
-
-    @staticmethod
-    def _parse_date(date_str: str):
-        for fmt in (
-            "%d-%b-%Y",
-            "%d-%b-%y",
-            "%b %d, %Y",
-            "%b %d,%Y",
-            "%d/%m/%Y",
-            "%B %d, %Y",
-            "%B %d,%Y",
-        ):
-            try:
-                return datetime.strptime(date_str.strip(), fmt).date()
-            except ValueError:
-                continue
-        return None
 
 
 class IciciCcPaymentAlertParser(BaseEmailParser):
@@ -220,7 +177,7 @@ class IciciCcPaymentAlertParser(BaseEmailParser):
             raise ParseError(f"Could not parse amount: {match.group('amount')!r}")
 
         card_mask = re.sub(r"\s+", " ", match.group("card").strip())
-        transaction_date = self._parse_date(match.group("date").strip())
+        transaction_date = parse_date(match.group("date"))
 
         return ParsedEmail(
             email_type=self.email_type,
@@ -235,15 +192,6 @@ class IciciCcPaymentAlertParser(BaseEmailParser):
                 raw_description=match.group(0).strip(),
             ),
         )
-
-    @staticmethod
-    def _parse_date(date_str: str):
-        for fmt in ("%d-%b-%Y", "%d-%b-%y", "%b %d, %Y", "%b %d,%Y", "%d/%m/%Y"):
-            try:
-                return datetime.strptime(date_str.strip(), fmt).date()
-            except ValueError:
-                continue
-        return None
 
 
 class IciciBankTransferAlertParser(BaseEmailParser):
@@ -284,9 +232,7 @@ class IciciBankTransferAlertParser(BaseEmailParser):
         if (amount := parse_amount(match.group("amount"))) is None:
             raise ParseError(f"Could not parse amount: {match.group('amount')!r}")
 
-        transaction_date = self._parse_datetime(
-            match.group("date"), match.group("time")
-        )
+        transaction_date = _parse_icici_datetime(match.group("date"), match.group("time"))
 
         reference_number = None
         if txn_match := self._txn_id_pattern.search(text):
@@ -307,26 +253,6 @@ class IciciBankTransferAlertParser(BaseEmailParser):
                 raw_description=match.group(0).strip(),
             ),
         )
-
-    @staticmethod
-    def _parse_datetime(date_str: str, time_str: str) -> datetime | None:
-        normalized_time = _parse_icici_time(time_str)
-        if not normalized_time:
-            return None
-        combined = f"{date_str.strip()} {normalized_time}"
-        for fmt in (
-            "%b %d, %Y %H:%M:%S",
-            "%b %d, %y %H:%M:%S",
-            "%d-%b-%Y %H:%M:%S",
-            "%d-%b-%y %H:%M:%S",
-            "%b %d, %Y %H:%M:00",
-            "%b %d, %y %H:%M:00",
-        ):
-            try:
-                return datetime.strptime(combined, fmt)
-            except ValueError:
-                continue
-        return None
 
 
 class IciciNetBankingAlertParser(BaseEmailParser):
@@ -363,8 +289,7 @@ class IciciNetBankingAlertParser(BaseEmailParser):
         if (amount := parse_amount(match.group("amount"))) is None:
             raise ParseError(f"Could not parse amount: {match.group('amount')!r}")
 
-        time_with_suffix = f"{match.group('time')} hours"
-        transaction_date = self._parse_datetime(match.group("date"), time_with_suffix)
+        transaction_date = _parse_icici_datetime(match.group("date"), match.group("time"))
 
         reference_number = None
         if txn_match := self._txn_id_pattern.search(text):
@@ -385,26 +310,6 @@ class IciciNetBankingAlertParser(BaseEmailParser):
                 raw_description=match.group(0).strip(),
             ),
         )
-
-    @staticmethod
-    def _parse_datetime(date_str: str, time_str: str) -> datetime | None:
-        normalized_time = _parse_icici_time(time_str)
-        if not normalized_time:
-            return None
-        combined = f"{date_str.strip()} {normalized_time}"
-        for fmt in (
-            "%b %d, %Y %H:%M:%S",
-            "%b %d, %y %H:%M:%S",
-            "%d-%b-%Y %H:%M:%S",
-            "%d-%b-%y %H:%M:%S",
-            "%b %d, %Y %H:%M:00",
-            "%b %d, %y %H:%M:00",
-        ):
-            try:
-                return datetime.strptime(combined, fmt)
-            except ValueError:
-                continue
-        return None
 
 
 class IciciCcReversalParser(BaseEmailParser):

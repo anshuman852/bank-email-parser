@@ -14,38 +14,18 @@ Supported email types:
 """
 
 import re
-from datetime import datetime
 
 from bank_email_parser.exceptions import ParseError
 from bank_email_parser.models import Money, ParsedEmail, TransactionAlert
 from bank_email_parser.parsers.base import BaseEmailParser, parse_with_parsers
-from bank_email_parser.utils import parse_amount, parse_date
+from bank_email_parser.utils import parse_amount, parse_date, parse_datetime
 
 
-def _parse_kotak_datetime(
-    date_str: str, time_str: str | None = None
-) -> datetime | None:
-    """Parse Kotak date (DD/MM/YYYY or DD/MM/YY) with optional time (HH:MM:SS or HH:MM)."""
-    cleaned = date_str.strip()
+def _parse_kotak_datetime(date_str: str, time_str: str | None = None):
+    """Parse a Kotak date (and optional time) via dateutil."""
     if time_str:
-        combined = f"{cleaned} {time_str.strip()}"
-        for fmt in (
-            "%d/%m/%Y %H:%M:%S",
-            "%d/%m/%Y %H:%M",
-            "%d/%m/%y %H:%M:%S",
-            "%d/%m/%y %H:%M",
-        ):
-            try:
-                return datetime.strptime(combined, fmt)
-            except ValueError:
-                continue
-    # Date-only fallback
-    for fmt in ("%d/%m/%Y", "%d/%m/%y"):
-        try:
-            return datetime.strptime(cleaned, fmt)
-        except ValueError:
-            continue
-    return None
+        return parse_datetime(f"{date_str.strip()} {time_str.strip()}")
+    return parse_datetime(date_str)
 
 
 class KotakCcTransactionParser(BaseEmailParser):
@@ -484,7 +464,7 @@ class KotakNachDebitParser(BaseEmailParser):
     def parse(self, html: str) -> ParsedEmail:
         _, text = self.prepare_html(html)
 
-        if not self._pattern.search(text):
+        if not (match := self._pattern.search(text)):
             raise ParseError("Could not parse Kotak NACH debit.")
 
         if not (amount_match := self._amount_pattern.search(text)):
@@ -494,8 +474,6 @@ class KotakNachDebitParser(BaseEmailParser):
             raise ParseError(
                 f"Could not parse amount: {amount_match.group('amount')!r}"
             )
-
-        account = self._pattern.search(text).group("account")
 
         counterparty = None
         if ben_match := self._beneficiary_pattern.search(text):
@@ -526,10 +504,10 @@ class KotakNachDebitParser(BaseEmailParser):
                 transaction_date=txn_date,
                 transaction_time=txn_time,
                 counterparty=counterparty,
-                account_mask=account,
+                account_mask=match.group("account"),
                 reference_number=None,
                 channel="nach",
-                raw_description=self._pattern.search(text).group(0).strip(),
+                raw_description=match.group(0).strip(),
             ),
         )
 
