@@ -355,7 +355,9 @@ class HdfcStatementEmailParser(BaseEmailParser):
     def parse(self, html: str) -> ParsedEmail:
         _, text = self.prepare_html(html)
         text_lower = text.lower()
-        has_statement = "smartstatement" in text_lower or "account statement" in text_lower
+        has_statement = (
+            "smartstatement" in text_lower or "account statement" in text_lower
+        )
         has_attachment = "password" in text_lower or "attached" in text_lower
         if not (has_statement and has_attachment):
             raise ParseError("Not an HDFC statement email")

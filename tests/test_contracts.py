@@ -22,6 +22,7 @@ def test_equitas_parser_populates_transaction_time() -> None:
 
     result = parse_email("equitas", html)
 
+    assert result.transaction is not None
     assert result.transaction.amount.amount == Decimal("1500.00")
     assert result.transaction.transaction_time == time(14, 23, 51)
 
@@ -40,6 +41,7 @@ def test_indusind_cc_parser_populates_transaction_time() -> None:
     result = parse_email("indusind", html)
 
     assert result.email_type == "indusind_cc_transaction_alert"
+    assert result.transaction is not None
     assert result.transaction.transaction_time == time(0, 0, 1)
 
 
@@ -62,6 +64,7 @@ def test_indusind_dc_parser_populates_transaction_time() -> None:
     result = parse_email("indusind", html)
 
     assert result.email_type == "indusind_dc_transaction_alert"
+    assert result.transaction is not None
     assert result.transaction.transaction_time == time(23, 22, 33)
 
 
@@ -78,6 +81,7 @@ def test_raw_description_is_excluded_from_serialized_output_by_default() -> None
 
     result = parse_email("equitas", html)
 
+    assert result.transaction is not None
     assert result.transaction.raw_description is not None
     assert "raw_description" not in result.model_dump()["transaction"]
 
@@ -95,6 +99,7 @@ def test_raw_description_is_excluded_from_model_repr_by_default() -> None:
 
     result = parse_email("equitas", html)
 
+    assert result.transaction is not None
     assert result.transaction.raw_description is not None
     assert "raw_description" not in repr(result)
     assert "raw_description" not in repr(result.transaction)
@@ -113,6 +118,7 @@ def test_hsbc_invalid_time_does_not_degrade_to_midnight() -> None:
 
     result = parse_email("hsbc", html)
 
+    assert result.transaction is not None
     assert result.transaction.transaction_date is not None
     assert result.transaction.transaction_time is None
 
@@ -130,6 +136,7 @@ def test_indusind_cc_payment_parser_still_sets_transaction_date() -> None:
     result = parse_email("indusind", html)
 
     assert result.email_type == "indusind_cc_payment_alert"
+    assert result.transaction is not None
     assert result.transaction.transaction_date == date(2026, 1, 15)
 
 

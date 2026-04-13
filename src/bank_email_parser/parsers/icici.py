@@ -76,7 +76,9 @@ class IciciCcTransactionAlertParser(BaseEmailParser):
         if (amount := parse_amount(match.group("amount"))) is None:
             raise ParseError(f"Could not parse amount: {match.group('amount')!r}")
 
-        transaction_date = _parse_icici_datetime(match.group("date"), match.group("time"))
+        transaction_date = _parse_icici_datetime(
+            match.group("date"), match.group("time")
+        )
         counterparty = match.group("info").strip().rstrip(".")
 
         balance = None
@@ -232,7 +234,9 @@ class IciciBankTransferAlertParser(BaseEmailParser):
         if (amount := parse_amount(match.group("amount"))) is None:
             raise ParseError(f"Could not parse amount: {match.group('amount')!r}")
 
-        transaction_date = _parse_icici_datetime(match.group("date"), match.group("time"))
+        transaction_date = _parse_icici_datetime(
+            match.group("date"), match.group("time")
+        )
 
         reference_number = None
         if txn_match := self._txn_id_pattern.search(text):
@@ -289,7 +293,9 @@ class IciciNetBankingAlertParser(BaseEmailParser):
         if (amount := parse_amount(match.group("amount"))) is None:
             raise ParseError(f"Could not parse amount: {match.group('amount')!r}")
 
-        transaction_date = _parse_icici_datetime(match.group("date"), match.group("time"))
+        transaction_date = _parse_icici_datetime(
+            match.group("date"), match.group("time")
+        )
 
         reference_number = None
         if txn_match := self._txn_id_pattern.search(text):
@@ -343,7 +349,11 @@ class IciciStatementEmailParser(BaseEmailParser):
         _, text = self.prepare_html(html)
         text_lower = text.lower()
         has_statement = "statement" in text_lower and "icici" in text_lower
-        has_attachment = "password" in text_lower or "attached" in text_lower or "download" in text_lower
+        has_attachment = (
+            "password" in text_lower
+            or "attached" in text_lower
+            or "download" in text_lower
+        )
         if not (has_statement and has_attachment):
             raise ParseError("Not an ICICI statement email")
         return ParsedEmail(

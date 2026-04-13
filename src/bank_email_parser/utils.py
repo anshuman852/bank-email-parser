@@ -34,7 +34,7 @@ def parse_datetime(value: str) -> datetime | None:
     """
     try:
         return _dateutil_parser.parse(value.strip(), dayfirst=True)
-    except (ValueError, TypeError, OverflowError):
+    except ValueError, TypeError, OverflowError:
         return None
 
 

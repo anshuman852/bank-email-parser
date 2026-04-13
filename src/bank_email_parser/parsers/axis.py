@@ -76,13 +76,10 @@ def _extract_label_value_pairs(soup: BeautifulSoup) -> dict[str, str]:
 
         # Only accept the immediate next sibling if it's a value div
         next_el = label_div.find_next_sibling()
-        if (
-            next_el
-            and next_el.name == "div"
-            and next_el.get("style")
-            and _VALUE_MARKER in next_el.get("style", "")
-        ):
-            pairs[_FIELD_MAP[normalized]] = next_el.get_text(strip=True)
+        if next_el and next_el.name == "div":
+            style = next_el.get("style", "")
+            if isinstance(style, str) and _VALUE_MARKER in style:
+                pairs[_FIELD_MAP[normalized]] = next_el.get_text(strip=True)
 
     return pairs
 

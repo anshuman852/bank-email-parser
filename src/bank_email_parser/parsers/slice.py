@@ -18,7 +18,6 @@ from bank_email_parser.utils import (
 )
 
 
-
 # Amount pattern that handles zero-width non-joiner (\u200c) between digit groups
 _AMT = r"[\d,\u200c]+(?:\.\d+)?"
 # Account reference: "account xx0298", "a/c xx0298", "account ending XX0298"

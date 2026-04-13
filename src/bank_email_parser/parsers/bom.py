@@ -8,7 +8,7 @@ Supported email types:
 import re
 
 from bank_email_parser.exceptions import ParseError
-from bank_email_parser.models import Money, ParsedEmail, TransactionAlert
+from bank_email_parser.models import ParsedEmail, TransactionAlert
 from bank_email_parser.parsers.base import BaseEmailParser, parse_with_parsers
 from bank_email_parser.utils import parse_date, parse_money
 

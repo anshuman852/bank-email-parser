@@ -441,11 +441,6 @@ class KotakNachDebitParser(BaseEmailParser):
         re.IGNORECASE,
     )
 
-    _umrn_pattern = re.compile(
-        r"UMRN\s+Number\s*:\s*(?P<umrn>[\w-]+)",
-        re.IGNORECASE,
-    )
-
     _amount_pattern = re.compile(
         r"Amount\s*:\s*(?:Rs\.?|₹|INR)\s*(?P<amount>[\d,]+(?:\.\d+)?)",
         re.IGNORECASE,
@@ -478,10 +473,6 @@ class KotakNachDebitParser(BaseEmailParser):
         counterparty = None
         if ben_match := self._beneficiary_pattern.search(text):
             counterparty = ben_match.group("beneficiary").strip()
-
-        reference_number = None
-        if umrn_match := self._umrn_pattern.search(text):
-            reference_number = umrn_match.group("umrn")
 
         txn_date = None
         txn_time = None

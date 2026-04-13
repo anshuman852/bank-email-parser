@@ -44,9 +44,7 @@ class YesbankCcDebitAlertParser(BaseEmailParser):
         counterparty = match.group(3).strip() or None
 
         txn_time = None
-        if dt := parse_datetime(
-            f"{match.group(4)} {match.group(5)} {match.group(6)}"
-        ):
+        if dt := parse_datetime(f"{match.group(4)} {match.group(5)} {match.group(6)}"):
             txn_date = dt.date()
             txn_time = dt.time()
         else:
