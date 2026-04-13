@@ -7,6 +7,7 @@ from bank_email_parser.models import ParsedEmail
 
 SUPPORTED_BANKS = (
     "axis",
+    "bom",
     "equitas",
     "hdfc",
     "hsbc",
@@ -18,6 +19,7 @@ SUPPORTED_BANKS = (
     "sbi",
     "slice",
     "uboi",
+    "yesbank",
 )
 
 
@@ -46,4 +48,10 @@ def parse_email(bank: str, html: str) -> ParsedEmail:
         raise ParseError("Input HTML too large (>500KB).")
 
     module = import_module(f"bank_email_parser.parsers.{bank}")
-    return module.parse(html)
+
+    if not callable(parse := getattr(module, "parse", None)):
+        raise ParseError(
+            f"bank_email_parser.parsers.{bank!r} does not define parse(html)"
+        )
+
+    return parse(html)

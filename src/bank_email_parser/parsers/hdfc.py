@@ -10,34 +10,11 @@ Supported email types:
 """
 
 import re
-from datetime import datetime
 
 from bank_email_parser.exceptions import ParseError
 from bank_email_parser.models import Money, ParsedEmail, TransactionAlert
-
-
 from bank_email_parser.parsers.base import BaseEmailParser, parse_with_parsers
-from bank_email_parser.utils import parse_amount, parse_date
-
-
-def _parse_hdfc_date(date_str: str) -> datetime | None:
-    """Parse HDFC card date+time strings like '14 Feb, 2026 at 16:35:07'.
-
-    Handles:
-      - '14 Feb, 2026' (date only)
-      - '14 Feb, 2026 at 16:35:07' (date + time)
-
-    Note: ``%b`` relies on the system locale for month abbreviations.
-    This assumes an English (C/POSIX) locale, which is fine for a
-    single-user self-hosted tool.
-    """
-    cleaned = date_str.strip()
-    for fmt in ("%d %b, %Y at %H:%M:%S", "%d %b, %Y"):
-        try:
-            return datetime.strptime(cleaned, fmt)
-        except ValueError:
-            continue
-    return None
+from bank_email_parser.utils import parse_amount, parse_date, parse_datetime
 
 
 class HdfcUpiAlertParser(BaseEmailParser):
@@ -146,7 +123,7 @@ class HdfcCardDebitAlertParser(BaseEmailParser):
             raise ParseError(f"Could not parse amount: {match.group('amount')!r}")
 
         date_time_str = f"{match.group('date')} at {match.group('time')}"
-        txn_dt = _parse_hdfc_date(date_time_str)
+        txn_dt = parse_datetime(date_time_str)
 
         return ParsedEmail(
             email_type=self.email_type,
@@ -204,7 +181,7 @@ class HdfcReversalAlertParser(BaseEmailParser):
         txn_date = None
         txn_time = None
         if m := self._datetime_pattern.search(text):
-            if dt := _parse_hdfc_date(m.group("datetime")):
+            if dt := parse_datetime(m.group("datetime")):
                 txn_date = dt.date()
                 txn_time = dt.time()
 

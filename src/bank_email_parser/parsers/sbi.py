@@ -9,14 +9,13 @@ Supported email types:
 """
 
 import re
-from datetime import datetime
 
 from bs4 import BeautifulSoup
 
 from bank_email_parser.exceptions import ParseError
 from bank_email_parser.models import Money, ParsedEmail, TransactionAlert
 from bank_email_parser.parsers.base import BaseEmailParser, parse_with_parsers
-from bank_email_parser.utils import normalize_whitespace, parse_amount
+from bank_email_parser.utils import normalize_whitespace, parse_amount, parse_date
 
 # ISO 4217 currency codes that may appear in SBI CC foreign-currency alerts.
 # Extend this list as new currencies are encountered.
@@ -69,11 +68,7 @@ class SbiCcTransactionAlertParser(BaseEmailParser):
         if (amount := parse_amount(match.group(1))) is None:
             raise ParseError(f"Could not parse amount: {match.group(1)!r}")
 
-        # DD/MM/YY -- two-digit year
-        try:
-            txn_date = datetime.strptime(match.group(4), "%d/%m/%y").date()
-        except ValueError:
-            txn_date = None
+        txn_date = parse_date(match.group(4))
 
         return ParsedEmail(
             email_type=self.email_type,
@@ -121,11 +116,7 @@ class SbiCcFxTransactionAlertParser(BaseEmailParser):
         if (amount := parse_amount(match.group(2))) is None:
             raise ParseError(f"Could not parse amount: {match.group(2)!r}")
 
-        # DD/MM/YY -- two-digit year
-        try:
-            txn_date = datetime.strptime(match.group(5), "%d/%m/%y").date()
-        except ValueError:
-            txn_date = None
+        txn_date = parse_date(match.group(5))
 
         return ParsedEmail(
             email_type=self.email_type,
@@ -178,10 +169,7 @@ class SbiCcEMandateParser(BaseEmailParser):
         txn_date = None
         if cd_match := self._card_date_pattern.search(text):
             card_mask = cd_match.group(1)
-            try:
-                txn_date = datetime.strptime(cd_match.group(2), "%d-%m-%y").date()
-            except ValueError:
-                pass
+            txn_date = parse_date(cd_match.group(2))
 
         return ParsedEmail(
             email_type=self.email_type,
@@ -242,10 +230,7 @@ class SbiCcDeclinedParser(BaseEmailParser):
             raise ParseError(f"Could not parse amount: {raw_amount!r}")
 
         card_mask = match.group(4)
-        try:
-            txn_date = datetime.strptime(match.group(6), "%d-%m-%y").date()
-        except ValueError:
-            txn_date = None
+        txn_date = parse_date(match.group(6))
 
         return ParsedEmail(
             email_type=self.email_type,
@@ -311,10 +296,7 @@ class SbiPaymentAckParser(BaseEmailParser):
             # ordinal IS inside <sup> tags, _sup_tag already removed it above,
             # so this is a no-op -- but we keep it for robustness.
             stripped_date = self._ordinal_suffix.sub(r"\1", raw_date)
-            try:
-                txn_date = datetime.strptime(stripped_date, "%d %B %Y").date()
-            except ValueError:
-                pass
+            txn_date = parse_date(stripped_date)
 
         reference_number = None
         if ref_match := self._ref_pattern.search(text):

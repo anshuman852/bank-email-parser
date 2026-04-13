@@ -8,7 +8,6 @@ Supported email types:
 """
 
 import re
-from datetime import datetime
 
 from bs4 import BeautifulSoup
 
@@ -19,27 +18,15 @@ from bank_email_parser.utils import (
     normalize_key,
     parse_amount,
     parse_date,
+    parse_datetime,
 )
 
 
-def _parse_indusind_datetime(
-    date_str: str, time_str: str | None = None
-) -> datetime | None:
-    """Parse IndusInd date strings with optional 12-hour time."""
-    cleaned_date = date_str.strip()
+def _parse_indusind_datetime(date_str: str, time_str: str | None = None):
+    """Parse IndusInd date + optional 12-hour time via dateutil."""
     if time_str is not None:
-        cleaned_time = time_str.strip().upper()
-        try:
-            return datetime.strptime(
-                f"{cleaned_date} {cleaned_time}",
-                "%d-%m-%Y %I:%M:%S %p",
-            )
-        except ValueError:
-            pass
-    try:
-        return datetime.strptime(cleaned_date, "%d-%m-%Y")
-    except ValueError:
-        return None
+        return parse_datetime(f"{date_str.strip()} {time_str.strip()}")
+    return parse_datetime(date_str)
 
 
 class IndusindCcPaymentAlertParser(BaseEmailParser):

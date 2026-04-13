@@ -10,8 +10,14 @@ requires-python = ">=3.14"
 dependencies = [
     "pydantic>=2.0",
     "beautifulsoup4>=4.12",
+    "python-dateutil>=2.9.0.post0",
 ]
 
 [build-system]
 requires = ["uv_build>=0.9.25,<0.10.0"]
 build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]

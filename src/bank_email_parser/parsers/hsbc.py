@@ -6,12 +6,11 @@ Supported email types:
 """
 
 import re
-from datetime import datetime
 
 from bank_email_parser.exceptions import ParseError
 from bank_email_parser.models import Money, ParsedEmail, TransactionAlert
 from bank_email_parser.parsers.base import BaseEmailParser, parse_with_parsers
-from bank_email_parser.utils import parse_amount, parse_date
+from bank_email_parser.utils import parse_amount, parse_date, parse_datetime
 
 
 class HsbcCcDebitAlertParser(BaseEmailParser):
@@ -42,21 +41,14 @@ class HsbcCcDebitAlertParser(BaseEmailParser):
         if (amount := parse_amount(match.group("amount"))) is None:
             raise ParseError(f"Could not parse amount: {match.group('amount')!r}")
 
-        date_str = match.group("date")
-        time_str = match.group("time")
-        txn_date = None
         txn_time = None
-        for dt_str, fmt, has_time in (
-            (f"{date_str} {time_str}", "%d %b %Y %H:%M", True),
-            (date_str, "%d %b %Y", False),
-        ):
-            try:
-                dt = datetime.strptime(dt_str, fmt)
-                txn_date = dt.date()
-                txn_time = dt.time() if has_time else None
-                break
-            except ValueError:
-                continue
+        if dt := parse_datetime(f"{match.group('date')} {match.group('time')}"):
+            txn_date = dt.date()
+            txn_time = dt.time()
+        else:
+            # Fall back to date-only when the time is malformed, so a bad time
+            # doesn't cause us to drop the date too.
+            txn_date = parse_date(match.group("date"))
 
         return ParsedEmail(
             email_type=self.email_type,
