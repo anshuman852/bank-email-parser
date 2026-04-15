@@ -1,10 +1,9 @@
 """Tests for newly added parsers: Kotak811 Transaction, Kotak CC Bill Paid,
-ICICI CC Reversal (stub), and Axis NEFT (stub)."""
+ICICI CC Reversal, and Axis NEFT (stub)."""
 
 from decimal import Decimal
 
 import pytest
-
 from bank_email_parser.api import parse_email
 from bank_email_parser.exceptions import ParseError
 

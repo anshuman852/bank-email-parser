@@ -6,12 +6,13 @@ import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import ClassVar
 
 from bs4 import BeautifulSoup
 
 from bank_email_parser.exceptions import ParseError, ParserStubError
 from bank_email_parser.models import ParsedEmail
-from bank_email_parser.utils import normalize_whitespace
+from bank_email_parser.parsing.html import normalize_whitespace
 
 
 @dataclass(slots=True)
@@ -74,6 +75,30 @@ class BaseEmailParser(ABC):
         ...
 
 
+class BankParser:
+    """Bank-level dispatcher that preserves per-bank parser ordering."""
+
+    bank: ClassVar[str]
+    parsers: ClassVar[Sequence[BaseEmailParser]]
+
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        super().__init_subclass__(**kwargs)
+        if "bank" not in cls.__dict__ and "parsers" not in cls.__dict__:
+            return
+        bank = getattr(cls, "bank", None)
+        bank_parsers = getattr(cls, "parsers", None)
+        if not isinstance(bank, str):
+            raise TypeError(f"{cls.__name__} must define a 'bank: str' class attribute")
+        if not isinstance(bank_parsers, Sequence):
+            raise TypeError(
+                f"{cls.__name__} must define a 'parsers' sequence of parser instances"
+            )
+
+    def parse(self, html: str) -> ParsedEmail:
+        """Dispatch to the bank's parser chain."""
+        return parse_with_parsers(self.bank, html, self.parsers)
+
+
 def parse_with_parsers(
     bank: str,
     html: str,
@@ -97,11 +122,16 @@ def parse_with_parsers(
                 result = parser.parse(html)
                 # Success — but warn about any unexpected errors from earlier parsers
                 if unexpected_errors:
-                    warnings.warn(
-                        f"Parser {parser.email_type} succeeded but earlier parsers raised unexpected errors: "
+                    warning = (
+                        f"Parser {parser.email_type} succeeded but earlier parsers "
+                        "raised unexpected errors: "
                         + "; ".join(
-                            f"{type(e).__name__}: {e}" for e in unexpected_errors
-                        ),
+                            f"{type(error).__name__}: {error}"
+                            for error in unexpected_errors
+                        )
+                    )
+                    warnings.warn(
+                        warning,
                         stacklevel=2,
                     )
                 return result

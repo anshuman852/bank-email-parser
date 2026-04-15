@@ -1,115 +1,64 @@
 ---
 name: add-bank-parser
-description: Add a new bank email parser or add a new email type to an existing bank. Use when adding support for parsing transaction alert or statement emails from a bank.
+description: Add a new bank email parser or a new email type to an existing bank.
 ---
 
 # Add or Update a Bank Email Parser
 
-**This skill is interactive.** It requires running Python to extract and test against email HTML. Do not run this in the background. If you need tool permissions, ask for them.
+Arguments: `$ARGUMENTS` — bank slug and sample email (`.eml` path or HTML body).
 
-Arguments: `$ARGUMENTS` — bank slug and sample email (raw .eml path or HTML body).
+## Read first
 
-## Step 1: Study the codebase
+- `AGENTS.md`
+- `bank_email_parser/models.py`
+- `bank_email_parser/parsers/base.py`
+- `bank_email_parser/api.py`
+- `bank_email_parser/parsers/__init__.py`
+- One existing parser module or subpackage for the target shape
 
-Read these files:
-- `AGENTS.md` — architecture, parser interface, key patterns
-- `src/bank_email_parser/models.py` — output schema (see Output Schema below)
-- `src/bank_email_parser/parsers/base.py` — `BaseEmailParser` interface and `parse_with_parsers()` dispatcher
-- At least one existing parser — a simple one for new banks, a multi-type one for adding email types
-- `src/bank_email_parser/api.py` — `SUPPORTED_BANKS`, `parse_email()`
+## Inspect the HTML first — MANDATORY
 
-## Step 2: Extract and examine the email HTML
+Do not write parser code before examining the real email. Skipping this step produces parsers that match imagined structure and silently drop fields.
 
-**MANDATORY. Do not write any parser code before completing this step.**
+From a `.eml`, extract the HTML body (`email.message_from_bytes`, walk parts, decode the `text/html` payload). From the HTML, identify:
 
-If given a `.eml` file, run code to extract the HTML body:
+- which fields are present (amount, direction, date/time, counterparty, account/card mask, reference, channel, balance)
+- how they are encoded (2-column `<table>`, label/value `<div>` pairs, `<li>` list, prose regex)
+- unique markers that distinguish this email type from the bank's other emails
+- for statement emails: the password hint text
 
-```python
-import email
-with open("<path>", "rb") as f:
-    msg = email.message_from_bytes(f.read())
-for part in msg.walk():
-    if part.get_content_type() == "text/html":
-        html = part.get_payload(decode=True).decode()
-        print(html[:3000])
-        break
-```
+## Implementation checklist
 
-From the HTML, identify:
-- What data is present (amount, direction, date, time, counterparty, account/card mask, reference number, channel, balance)
-- How it's structured (HTML table, key-value `<li>` list, prose text, structured `<span>`/`<td>` elements)
-- Unique markers that identify this email type (specific phrases, class names, structure)
-- For statement emails: password hint text
+1. Use `bank_email_parser/parsing/` helpers first (`parse_date`, `parse_datetime`, `parse_amount`, `parse_money`, `normalize_whitespace`, `extract_table_pairs`, `normalize_key`). Existing parsers still import from `bank_email_parser.utils`, which re-exports the same helpers; either import path is valid, but new code should prefer `parsing/`.
+2. For banks with multiple distinct email types, prefer `bank_email_parser/parsers/{bank}/`:
+   - `__init__.py` exports `{Bank}Parser`
+   - one parser class per email type
+   - `_PARSERS` keeps ordering
+3. For simple banks, `parsers/{bank}.py` is still fine.
+4. Keep `email_type` stable and bank-prefixed — `bank-email-fetcher` stores these values.
+5. Expose a bank dispatcher class (`{Bank}Parser`) and module-level `parse(html)`.
+6. Register the dispatcher in `bank_email_parser/parsers/__init__.py`. The CLI reads `SUPPORTED_BANKS` automatically.
+7. Add synthetic pytest coverage.
 
-## Step 3: Write the parser
+## `_PARSERS` ordering
 
-**New bank** — create `src/bank_email_parser/parsers/{bank}.py`:
-- One `BaseEmailParser` subclass per email type
-- Set `bank` and `email_type` class attributes (`email_type` follows `{bank}_{description}` convention)
-- Implement `parse(self, html) -> ParsedEmail` — use `self.prepare_html(html)` to get `(soup, normalized_text)`
-- Raise `ParseError` if the email doesn't match (never return None)
-- Create `_PARSERS` tuple — specific parsers first, broad ones last, stubs at end
-- Create module-level `parse(html)` function calling `parse_with_parsers()`
-- Add bank to `SUPPORTED_BANKS` in `api.py`
+First match wins. Order matters:
 
-**New email type for existing bank** — add a new `BaseEmailParser` subclass to the bank's file, add it to `_PARSERS` in the right position.
+1. **Specific parsers first.** A parser whose markers uniquely identify one email type.
+2. **Broad parsers next.** A parser that matches several shapes but is reliable.
+3. **Statement parsers last** (see below).
+4. **`ParserStubError` stubs at the very end**, so they never shadow a real parser.
 
-**Statement email parser** — add a `{Bank}StatementEmailParser` class (last in `_PARSERS`, broadest match) that:
-- Guards strictly: check for both `"statement"` AND (`"password"` / `"attached"` / bank-specific markers) to avoid false-matching transaction alert footers
-- Returns `ParsedEmail(transaction=None, password_hint="...")` with a hardcoded hint describing the bank's password scheme (e.g., `"Date of birth in DDMMYYYY format"`, `"First 4 characters of name (uppercase) + DDMM of birth"`, `"Customer ID as the password"`)
+## Statement email parsers
 
-## Step 4: Test and iterate
+Statement parsers are inherently broad — they match on keywords like `"statement"` and `"password"` that can appear in transaction-alert footers. Under-guarded, a statement parser will eat unrelated emails.
 
-Test via `uv run python -c "..."`:
+Guard strictly: require `"statement"` **AND** at least one attachment/password marker (`"password"`, `"attached"`, `"password-protected"`, or a bank-specific phrase). Place the parser last in `_PARSERS`.
 
-```python
-from bank_email_parser.api import parse_email
-result = parse_email("{bank}", html_string)
-print(result.model_dump())
-```
+Return `ParsedEmail(transaction=None, password_hint="...")` with a hardcoded hint describing the bank's scheme (e.g. `"Date of birth in DDMMYYYY format"`, `"First 4 letters of name (lowercase) + DDMM of birth"`, `"Customer ID as the password"`).
 
-Check all fields: `email_type`, `bank`, `transaction` (direction, amount, date, counterparty, channel, masks, reference), and `password_hint` for statement emails. Test edge cases.
+## Rules
 
-This is iterative — if parsing fails or fields are wrong, examine the HTML more closely, fix the parser, re-test.
-
-## Output Schema
-
-`ParsedEmail` (from `models.py`):
-
-```
-ParsedEmail:
-  email_type: str                              # "{bank}_{type}" e.g. "hdfc_upi_alert"
-  bank: str
-  transaction: TransactionAlert | None         # None for statement emails
-  password_hint: str | None                    # for statement emails with encrypted PDFs
-```
-
-`TransactionAlert`:
-```
-TransactionAlert:
-  direction: "debit" | "credit" | "declined"
-  amount: Money                                # {amount: Decimal, currency: "INR"}
-  transaction_date: date | None
-  transaction_time: time | None
-  counterparty: str | None
-  balance: Money | None
-  reference_number: str | None
-  account_mask: str | None                     # last 4 digits of account
-  card_mask: str | None                        # last 4 digits of card
-  channel: str | None                          # upi, neft, imps, rtgs, card, atm, netbanking
-```
-
-## Gotchas
-
-- **Raise `ParseError`, never return None.** The dispatcher catches it and tries the next parser.
-- **`prepare_html()` caches per dispatch.** Thread-safe via thread-local storage. Call freely.
-- **Parser ordering in `_PARSERS` matters.** Specific before broad. Stubs last.
-- **Parser stubs.** For known-but-unimplemented types, raise `ParserStubError` to prevent wrong-parser fallthrough.
-- **Amount parsing.** Use `Decimal`. Indian lakhs grouping: "1,52,581.54". Strip ₹/Rs./INR.
-- **Date parsing.** Normalize to `datetime.date`. Banks vary: DD-MM-YYYY, DD MMM YYYY, DD/MM/YY.
-- **Channel values.** Lowercase: "upi", "neft", "imps", "rtgs", "card", "atm", "netbanking".
-- **HTML extraction.** BeautifulSoup `find()` with text regex for specific elements, `find_all("td")` for tables, regex on normalized text for prose. Check existing parsers for examples.
-
-## Self-improvement
-
-If you discover new patterns, email formats, or extraction techniques, update this skill.
+- Raise `ParseError` (or `ParserStubError` for known-but-unimplemented types). Never return `None` — the dispatcher needs the exception to try the next parser.
+- Keep public compatibility: `parse_email`, `SUPPORTED_BANKS`, exceptions, and bank-level imports (`from bank_email_parser.parsers.{bank} import {Bank}Parser`).
+- Never commit real personal or financial data.

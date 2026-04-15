@@ -9,7 +9,7 @@ from decimal import Decimal
 
 from bank_email_parser.exceptions import ParseError
 from bank_email_parser.models import Money, ParsedEmail, TransactionAlert
-from bank_email_parser.parsers.base import BaseEmailParser, parse_with_parsers
+from bank_email_parser.parsers.base import BankParser, BaseEmailParser
 from bank_email_parser.utils import parse_date, parse_datetime
 
 
@@ -85,4 +85,9 @@ _PARSERS = (EquitasCcAlertParser(),)
 
 
 def parse(html: str) -> ParsedEmail:
-    return parse_with_parsers("equitas", html, _PARSERS)
+    return EquitasParser().parse(html)
+
+
+class EquitasParser(BankParser):
+    bank = "equitas"
+    parsers = _PARSERS

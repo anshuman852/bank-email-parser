@@ -9,7 +9,7 @@ import re
 
 from bank_email_parser.exceptions import ParseError
 from bank_email_parser.models import Money, ParsedEmail, TransactionAlert
-from bank_email_parser.parsers.base import BaseEmailParser, parse_with_parsers
+from bank_email_parser.parsers.base import BankParser, BaseEmailParser
 from bank_email_parser.utils import parse_amount, parse_datetime
 
 
@@ -158,4 +158,9 @@ _PARSERS = (
 
 
 def parse(html: str) -> ParsedEmail:
-    return parse_with_parsers("idfc", html, _PARSERS)
+    return IdfcParser().parse(html)
+
+
+class IdfcParser(BankParser):
+    bank = "idfc"
+    parsers = _PARSERS

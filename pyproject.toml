@@ -8,16 +8,43 @@ authors = [
 ]
 requires-python = ">=3.14"
 dependencies = [
-    "pydantic>=2.0",
     "beautifulsoup4>=4.12",
+    "pydantic>=2.0",
     "python-dateutil>=2.9.0.post0",
+    "typer>=0.16.0",
 ]
 
+[project.scripts]
+bank-email-parser = "bank_email_parser.cli:app"
+
 [build-system]
-requires = ["uv_build>=0.9.25,<0.10.0"]
-build-backend = "uv_build"
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+package = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["bank_email_parser"]
 
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",
+    "ruff>=0.15.9",
+    "ty>=0.0.29",
 ]
+
+[tool.ruff]
+target-version = "py314"
+src = ["bank_email_parser", "tests"]
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "UP"]
+ignore = ["B008", "E501"]
+
+[tool.ty.environment]
+python-version = "3.14"
+root = ["."]
+
+[tool.ty.analysis]
+replace-imports-with-any = ["bs4", "bs4.**", "dateutil", "dateutil.**"]

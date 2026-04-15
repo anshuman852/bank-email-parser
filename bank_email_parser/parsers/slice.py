@@ -11,12 +11,11 @@ from decimal import Decimal, InvalidOperation
 
 from bank_email_parser.exceptions import ParseError
 from bank_email_parser.models import Money, ParsedEmail, TransactionAlert
-from bank_email_parser.parsers.base import BaseEmailParser, parse_with_parsers
+from bank_email_parser.parsers.base import BankParser, BaseEmailParser
 from bank_email_parser.utils import (
     extract_table_pairs,
     parse_date,
 )
-
 
 # Amount pattern that handles zero-width non-joiner (\u200c) between digit groups
 _AMT = r"[\d,\u200c]+(?:\.\d+)?"
@@ -43,8 +42,8 @@ def _clean_amount(raw: str) -> Decimal:
     """Strip commas and zero-width non-joiners from a regex-captured amount."""
     try:
         return Decimal(raw.replace(",", "").replace("\u200c", ""))
-    except InvalidOperation:
-        raise ParseError(f"Could not parse amount: {raw!r}")
+    except InvalidOperation as exc:
+        raise ParseError(f"Could not parse amount: {raw!r}") from exc
 
 
 class SliceTransactionAlertParser(BaseEmailParser):
@@ -253,4 +252,9 @@ _PARSERS = (
 
 
 def parse(html: str) -> ParsedEmail:
-    return parse_with_parsers("slice", html, _PARSERS)
+    return SliceParser().parse(html)
+
+
+class SliceParser(BankParser):
+    bank = "slice"
+    parsers = _PARSERS

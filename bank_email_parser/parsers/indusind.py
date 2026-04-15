@@ -13,7 +13,7 @@ from bs4 import BeautifulSoup
 
 from bank_email_parser.exceptions import ParseError
 from bank_email_parser.models import Money, ParsedEmail, TransactionAlert
-from bank_email_parser.parsers.base import BaseEmailParser, parse_with_parsers
+from bank_email_parser.parsers.base import BankParser, BaseEmailParser
 from bank_email_parser.utils import (
     normalize_key,
     parse_amount,
@@ -322,4 +322,9 @@ _PARSERS = (
 
 
 def parse(html: str) -> ParsedEmail:
-    return parse_with_parsers("indusind", html, _PARSERS)
+    return IndusindParser().parse(html)
+
+
+class IndusindParser(BankParser):
+    bank = "indusind"
+    parsers = _PARSERS

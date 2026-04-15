@@ -1,7 +1,7 @@
 """Repository hygiene checks that help prevent accidental PII commits."""
 
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 import pytest
 

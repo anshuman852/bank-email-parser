@@ -7,7 +7,7 @@ Supported email types:
 
 from bank_email_parser.exceptions import ParseError
 from bank_email_parser.models import Money, ParsedEmail, TransactionAlert
-from bank_email_parser.parsers.base import BaseEmailParser, parse_with_parsers
+from bank_email_parser.parsers.base import BankParser, BaseEmailParser
 from bank_email_parser.utils import parse_amount
 
 
@@ -108,4 +108,9 @@ _PARSERS = (
 
 
 def parse(html: str) -> ParsedEmail:
-    return parse_with_parsers("uboi", html, _PARSERS)
+    return UboiParser().parse(html)
+
+
+class UboiParser(BankParser):
+    bank = "uboi"
+    parsers = _PARSERS

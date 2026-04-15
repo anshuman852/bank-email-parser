@@ -8,7 +8,7 @@ import re
 
 from bank_email_parser.exceptions import ParseError
 from bank_email_parser.models import Money, ParsedEmail, TransactionAlert
-from bank_email_parser.parsers.base import BaseEmailParser, parse_with_parsers
+from bank_email_parser.parsers.base import BankParser, BaseEmailParser
 from bank_email_parser.utils import parse_amount, parse_date, parse_datetime
 
 
@@ -99,4 +99,9 @@ _PARSERS = (OnecardDebitAlertParser(),)
 
 
 def parse(html: str) -> ParsedEmail:
-    return parse_with_parsers("onecard", html, _PARSERS)
+    return OnecardParser().parse(html)
+
+
+class OnecardParser(BankParser):
+    bank = "onecard"
+    parsers = _PARSERS

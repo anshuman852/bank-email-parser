@@ -1,7 +1,7 @@
 """Contract-level tests for privacy defaults and parsed transaction fields."""
 
-from decimal import Decimal
 from datetime import date, time
+from decimal import Decimal
 
 from bank_email_parser.api import parse_email
 from bank_email_parser.exceptions import ParseError

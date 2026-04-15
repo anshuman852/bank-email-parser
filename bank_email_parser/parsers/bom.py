@@ -9,7 +9,7 @@ import re
 
 from bank_email_parser.exceptions import ParseError
 from bank_email_parser.models import ParsedEmail, TransactionAlert
-from bank_email_parser.parsers.base import BaseEmailParser, parse_with_parsers
+from bank_email_parser.parsers.base import BankParser, BaseEmailParser
 from bank_email_parser.utils import parse_date, parse_money
 
 # Numeric amount: digits with optional commas and 2 decimal places
@@ -137,4 +137,9 @@ _PARSERS = (BomUpiDebitAlertParser(), BomNeftCreditAlertParser())
 
 
 def parse(html: str) -> ParsedEmail:
-    return parse_with_parsers("bom", html, _PARSERS)
+    return BomParser().parse(html)
+
+
+class BomParser(BankParser):
+    bank = "bom"
+    parsers = _PARSERS
