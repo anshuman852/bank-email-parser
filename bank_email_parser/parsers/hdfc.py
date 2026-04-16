@@ -106,11 +106,11 @@ class HdfcCardDebitAlertParser(BaseEmailParser):
 
     _pattern = re.compile(
         r"Rs\.?\s*(?P<amount>[\d,]+(?:\.\d+)?)\s+"
-        r"is\s+debited\s+from\s+your\s+HDFC\s+Bank\s+"
+        r"(?:is|has\s+been)\s+debited\s+from\s+your\s+HDFC\s+Bank\s+"
         r"(?P<card_type>Credit|Debit)\s+Card\s+ending\s+(?P<card>\d{4})\s+"
         r"(?:towards|at)\s+(?P<merchant>.+?)\s+"
         r"on\s+(?P<date>\d{1,2}\s+\w{3},\s*\d{4})\s+"
-        r"at\s+(?P<time>\d{2}:\d{2}:\d{2})\.",
+        r"at\s+(?P<time>\d{2}:\d{2}:\d{2})\s*\.",
     )
 
     def parse(self, html: str) -> ParsedEmail:
