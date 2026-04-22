@@ -225,6 +225,7 @@ class KotakCreditCardPaymentParser(BaseEmailParser):
                 direction="credit",
                 amount=Money(amount=amount),
                 transaction_date=txn_date,
+                counterparty="Payment received",
                 card_mask=match.group("card"),
                 balance=balance,
                 channel="card",

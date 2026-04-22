@@ -1048,6 +1048,7 @@ class TestKotakCreditCardPaymentParser:
         assert result.transaction.amount.amount == Decimal("2537.75")
         assert result.transaction.amount.currency == "INR"
         assert result.transaction.card_mask == "xx7291"
+        assert result.transaction.counterparty == "Payment received"
         assert result.transaction.channel == "card"
 
     def test_parses_date(self):
